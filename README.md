@@ -33,7 +33,7 @@ surat-app/
 │   └── dispensasi_murid.docx
 ├── static/                         # Assets Statis
 │   ├── style.css                   # Responsive SAAS Design System (Light/Dark Theme)
-│   └── logo_smada.jpg              # Logo Resmi SMAN 2 Wonosari
+│   └── smada.png                   # Logo Resmi SMAN 2 Wonosari
 └── templates/                      # Template UI HTML
     └── index.html                  # Antarmuka Dashboard Utama
 ```
