@@ -6,83 +6,85 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
-  /* Color Palette - Light Mode (Matching Reference Image) */
-  --bg-page: #f1f5f9;
-  --sidebar-bg: #ffffff;
-  --sidebar-border: #e2e8f0;
-  --sidebar-text: #64748b;
-  --sidebar-active-bg: #0f172a;
-  --sidebar-active-text: #ffffff;
-  
-  --card-bg: #ffffff;
-  --card-border: #e2e8f0;
-  --card-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05);
-  
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
-  
-  --primary-navy: #0f172a;
-  --primary-blue: #2563eb;
-  --primary-gradient: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
-  
-  --stepper-active-bg: #0f172a;
-  --stepper-active-text: #ffffff;
-  --stepper-completed-bg: #10b981;
-  --stepper-completed-text: #ffffff;
-  --stepper-line: #cbd5e1;
-  
-  --pill-orange-bg: #fff7ed;
-  --pill-orange-border: #ffedd5;
-  --pill-orange-text: #c2410c;
-  
-  --pill-purple-bg: #faf5ff;
-  --pill-purple-border: #f3e8ff;
-  --pill-purple-text: #7e22ce;
-  
-  --input-bg: #ffffff;
-  --input-border: #cbd5e1;
-  --input-focus: #0f172a;
-}
-
-[data-theme="dark"] {
-  /* Color Palette - Dark Mode */
-  --bg-page: #090d16;
-  --sidebar-bg: #0f172a;
-  --sidebar-border: #1e293b;
+  /* Color Palette - PayLinks Cobalt Glassmorphism System */
+  --bg-page: #081640;
+  --sidebar-bg: rgba(13, 30, 77, 0.7);
+  --sidebar-border: rgba(255, 255, 255, 0.12);
   --sidebar-text: #94a3b8;
-  --sidebar-active-bg: #3b82f6;
-  --sidebar-active-text: #ffffff;
+  --sidebar-active-bg: #facc15;
+  --sidebar-active-text: #07153b;
   
-  --card-bg: #0f172a;
-  --card-border: #1e293b;
-  --card-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.4);
+  --card-bg: rgba(13, 30, 77, 0.6);
+  --card-border: rgba(255, 255, 255, 0.12);
+  --card-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
   
-  --text-primary: #f8fafc;
+  --text-primary: #ffffff;
   --text-secondary: #cbd5e1;
   --text-muted: #64748b;
   
-  --primary-navy: #3b82f6;
+  --primary-navy: #38bdf8;
+  --primary-blue: #2563eb;
+  --primary-gold: #facc15;
+  --primary-gradient: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+  
+  --stepper-active-bg: #facc15;
+  --stepper-active-text: #07153b;
+  --stepper-completed-bg: #38bdf8;
+  --stepper-completed-text: #07153b;
+  --stepper-line: rgba(255, 255, 255, 0.2);
+  
+  --pill-orange-bg: rgba(250, 204, 21, 0.15);
+  --pill-orange-border: rgba(250, 204, 21, 0.4);
+  --pill-orange-text: #fef08a;
+  
+  --pill-purple-bg: rgba(56, 189, 248, 0.15);
+  --pill-purple-border: rgba(56, 189, 248, 0.4);
+  --pill-purple-text: #bae6fd;
+  
+  --input-bg: rgba(255, 255, 255, 0.08);
+  --input-border: rgba(255, 255, 255, 0.18);
+  --input-focus: #38bdf8;
+}
+
+[data-theme="dark"] {
+  /* Dark Mode inherits identical cobalt glassmorphism tone */
+  --bg-page: #050d26;
+  --sidebar-bg: rgba(7, 21, 59, 0.85);
+  --sidebar-border: rgba(255, 255, 255, 0.15);
+  --sidebar-text: #94a3b8;
+  --sidebar-active-bg: #facc15;
+  --sidebar-active-text: #07153b;
+  
+  --card-bg: rgba(7, 21, 59, 0.75);
+  --card-border: rgba(255, 255, 255, 0.15);
+  --card-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  
+  --text-primary: #ffffff;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  
+  --primary-navy: #38bdf8;
   --primary-blue: #60a5fa;
+  --primary-gold: #facc15;
   --primary-gradient: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
   
-  --stepper-active-bg: #3b82f6;
-  --stepper-active-text: #ffffff;
-  --stepper-completed-bg: #10b981;
-  --stepper-completed-text: #ffffff;
-  --stepper-line: #334155;
+  --stepper-active-bg: #facc15;
+  --stepper-active-text: #07153b;
+  --stepper-completed-bg: #38bdf8;
+  --stepper-completed-text: #07153b;
+  --stepper-line: rgba(255, 255, 255, 0.2);
   
-  --pill-orange-bg: rgba(194, 65, 12, 0.2);
-  --pill-orange-border: #c2410c;
-  --pill-orange-text: #ffedd5;
+  --pill-orange-bg: rgba(250, 204, 21, 0.2);
+  --pill-orange-border: #facc15;
+  --pill-orange-text: #fef08a;
   
-  --pill-purple-bg: rgba(126, 34, 206, 0.2);
-  --pill-purple-border: #7e22ce;
-  --pill-purple-text: #f3e8ff;
+  --pill-purple-bg: rgba(56, 189, 248, 0.2);
+  --pill-purple-border: #38bdf8;
+  --pill-purple-text: #bae6fd;
   
-  --input-bg: #1e293b;
-  --input-border: #334155;
-  --input-focus: #60a5fa;
+  --input-bg: rgba(255, 255, 255, 0.08);
+  --input-border: rgba(255, 255, 255, 0.2);
+  --input-focus: #38bdf8;
 }
 
 /* Base Resets */
@@ -95,10 +97,12 @@
 
 body {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  background-color: var(--bg-page);
+  background-color: #081640;
   background-image: 
-    radial-gradient(at 10% 10%, rgba(15, 23, 42, 0.05) 0px, transparent 40%),
-    radial-gradient(at 90% 90%, rgba(217, 119, 6, 0.04) 0px, transparent 40%);
+    radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.45) 0%, transparent 55%),
+    radial-gradient(circle at 80% 80%, rgba(29, 78, 216, 0.35) 0%, transparent 55%),
+    radial-gradient(circle at 50% 50%, rgba(13, 40, 117, 0.9) 0%, #050e26 100%);
+  background-attachment: fixed;
   color: var(--text-primary);
   min-height: 100vh;
   display: flex;
@@ -185,6 +189,8 @@ body {
 .app-sidebar {
   width: 260px;
   background: var(--sidebar-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-right: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
@@ -236,17 +242,19 @@ body {
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .nav-item:hover {
-  background: rgba(148, 163, 184, 0.1);
+  background: rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
 }
 
 .nav-item.active {
   background: var(--sidebar-active-bg);
   color: var(--sidebar-active-text);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+  box-shadow: 0 8px 24px rgba(250, 204, 21, 0.35);
+  font-weight: 800;
 }
 
 .sidebar-bottom {
@@ -284,6 +292,8 @@ body {
 
 .dashboard-wrapper {
   background: var(--card-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--card-border);
   border-radius: 24px;
   padding: 32px 40px;
@@ -717,20 +727,22 @@ input.form-control:focus {
   padding: 12px 28px;
   border: none;
   border-radius: 12px;
-  background: var(--primary-navy);
-  color: #ffffff;
+  background: #facc15;
+  color: #07153b;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 800;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+  box-shadow: 0 8px 24px rgba(250, 204, 21, 0.35);
+  transition: all 0.25s ease;
 }
 
 .btn-bottom-navy:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.35);
+  background: #f59e0b;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(250, 204, 21, 0.5);
 }
 
 /* Document Live Preview Sheet Container */
