@@ -932,14 +932,14 @@ input.form-control:focus {
     gap: 8px;
   }
 
-/* Template Bank Mobile Trigger Box */
+/* Template Bank Mobile Trigger Box (Strictly Hidden on Desktop > 768px) */
 .template-bank-mobile-box {
-  display: none;
+  display: none !important;
 }
 
 @media (max-width: 768px) {
   .template-bank-mobile-box {
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: space-between;
     padding: 14px;
@@ -956,12 +956,9 @@ input.form-control:focus {
     background: rgba(15, 23, 42, 0.05);
   }
 
-  .surat-card-grid {
-    grid-template-columns: 1fr;
-    gap: 10px;
-    max-height: 280px;
-    overflow-y: auto;
-    padding-right: 4px;
+  /* Hide Desktop Card Grid on Mobile so user uses Bank Trigger */
+  .wizard-panel .surat-card-grid {
+    display: none !important;
   }
 
   .surat-select-card {
