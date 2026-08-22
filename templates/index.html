@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E-Surat SMADA - Elektronik Persuratan SMAN 2 Wonosari</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Left Sidebar Navigation (Matching Reference Image) -->
+    <aside class="app-sidebar">
+      <div class="sidebar-top">
+        <div class="sidebar-brand">
+          <img src="{{ url_for('static', filename='logo_smada.jpg') }}" alt="Logo SMADA" class="sidebar-logo-img" style="width: 32px; height: 32px; object-fit: contain;">
+          <div class="sidebar-brand-name">E-SURAT SMADA</div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a class="nav-item active">
+            <i class="fa-solid fa-file-invoice"></i> Buat Surat
+          </a>
+          <a class="nav-item">
+            <i class="fa-solid fa-users"></i> Guru & Staff
+          </a>
+          <a class="nav-item">
+            <i class="fa-solid fa-user-graduate"></i> Siswa / Murid
+          </a>
+          <a class="nav-item">
+            <i class="fa-solid fa-file-word"></i> Template (.docx)
+          </a>
+          <a class="nav-item">
+            <i class="fa-solid fa-clock-rotate-left"></i> Riwayat Surat
+          </a>
+          <a class="nav-item">
+            <i class="fa-solid fa-bookmark"></i> Kode Arsip
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-bottom">
+        <button type="button" class="reset-link-btn" id="sidebarResetBtn">
+          <i class="fa-solid fa-arrow-rotate-left"></i> Reset Form
+        </button>
+        <button type="button" class="theme-toggle-btn" id="themeToggle" title="Beralih Tema (Gelap/Terang)">
+          <i class="fa-solid fa-moon" id="themeIcon"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Area -->
+    <main class="app-main">
+      <div class="dashboard-wrapper">
+
+        <!-- Top Dashboard Header Bar -->
+        <div class="dashboard-top-header">
+          <div class="dashboard-title-group">
+            <div class="title-icon-box"><i class="fa-solid fa-file-signature"></i></div>
+            <div>
+              <h2>E-Surat SMADA</h2>
+              <div style="font-size: 13px; color: var(--text-secondary);">Sistem Informasi Persuratan Resmi SMAN 2 Wonosari (Izin, Cuti, Sakit, Penugasan, Dispensasi)</div>
+            </div>
+          </div>
+          <button type="button" class="btn-header-outline" onclick="alert('Panduan: 1. Pilih jenis surat. 2. Cari nama guru/murid. 3. Isi tanggal & keperluan. 4. Klik Lanjutkan ke Pratinjau!')">
+            <i class="fa-solid fa-circle-question"></i> Bantuan & Panduan
+          </button>
+        </div>
+
+        <!-- Circle Numbered Stepper (Matching Reference Image) -->
+        <div class="circle-stepper">
+          <div class="stepper-circle-item active" id="stepIndicator1">
+            <div class="circle-num">1</div>
+            <div class="circle-title">Jenis Surat</div>
+          </div>
+          <div class="stepper-divider"></div>
+          <div class="stepper-circle-item" id="stepIndicator2">
+            <div class="circle-num">2</div>
+            <div class="circle-title">Cari Personel</div>
+          </div>
+          <div class="stepper-divider"></div>
+          <div class="stepper-circle-item" id="stepIndicator3">
+            <div class="circle-num">3</div>
+            <div class="circle-title">Isi Detail</div>
+          </div>
+          <div class="stepper-divider"></div>
+          <div class="stepper-circle-item" id="stepIndicator4">
+            <div class="circle-num">4</div>
+            <div class="circle-title">Pratinjau & Unduh</div>
+          </div>
+        </div>
+
+        <!-- Main Grid Split Content -->
+        <form id="suratForm" action="/generate" method="POST">
+          <input type="hidden" id="jenisSurat" name="jenis_surat" required>
+          <input type="hidden" id="id_value" name="id_value">
+
+          <!-- SINGLE ACTIVE WIZARD CONTAINER CARD (ZERO SCROLL) -->
+          <div class="dashboard-card" id="wizardMainCard" style="min-height: 420px; transition: all 0.25s ease;">
+            
+            <!-- Dynamic Header Bar -->
+            <div class="card-header-bar" style="border-bottom: 1px solid var(--card-border); padding-bottom: 14px; margin-bottom: 18px;">
+              <div class="card-header-left">
+                <i class="fa-solid fa-layer-group" id="wizardHeaderIcon" style="color: var(--primary-navy); font-size: 18px;"></i>
+                <h3 id="wizardHeaderTitle" style="font-size: 16px; font-weight: 700; color: var(--text-primary);">Langkah 1: Kategori & Jenis Surat</h3>
+              </div>
+              <span class="header-pill-badge" id="wizardHeaderBadge">Kategori: Guru / Staff</span>
+            </div>
+
+            <!-- PANEL STEP 1: PILIH JENIS SURAT -->
+            <div id="stepPanel1" class="wizard-panel">
+              <!-- Category Tabs Switcher -->
+              <div class="category-tabs-container" style="margin-bottom: 16px;">
+                <button type="button" class="category-tab active" data-kategori="guru">
+                  <i class="fa-solid fa-chalkboard-user"></i> Guru & Staff
+                </button>
+                <button type="button" class="category-tab" data-kategori="murid">
+                  <i class="fa-solid fa-user-graduate"></i> Siswa / Murid
+                </button>
+              </div>
+
+              <!-- Cards Grid Guru -->
+              <div class="surat-card-grid" id="gridGuru">
+                {% for key, info in jenis_surat.items() if info.kategori == 'guru' %}
+                <div class="surat-select-card" data-key="{{ key }}" data-kategori="guru">
+                  <div class="card-top">
+                    <div class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></div>
+                    <i class="fa-solid fa-circle-check card-check-icon"></i>
+                  </div>
+                  <div>
+                    <div class="card-title-text">{{ info.label }}</div>
+                    <div class="card-desc-text">{{ info.deskripsi or 'Template resmi SMADA.' }}</div>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+
+              <!-- Cards Grid Murid -->
+              <div class="surat-card-grid" id="gridMurid" style="display: none;">
+                {% for key, info in jenis_surat.items() if info.kategori == 'murid' %}
+                <div class="surat-select-card" data-key="{{ key }}" data-kategori="murid">
+                  <div class="card-top">
+                    <div class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></div>
+                    <i class="fa-solid fa-circle-check card-check-icon"></i>
+                  </div>
+                  <div>
+                    <div class="card-title-text">{{ info.label }}</div>
+                    <div class="card-desc-text">{{ info.deskripsi or 'Template izin/dispensasi murid.' }}</div>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <!-- PANEL STEP 2: CARI PERSONEL -->
+            <div id="stepPanel2" class="wizard-panel" style="display: none;">
+              <div style="background: var(--bg-primary); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 13px; color: var(--text-secondary);"><i class="fa-solid fa-file-signature"></i> Surat Terpilih: <strong id="step2SelectedSurat" style="color: var(--primary-navy);">-</strong></span>
+                <button type="button" class="reset-link-btn" onclick="setWizardStep(1);" style="font-size: 12px;"><i class="fa-solid fa-pen"></i> Ganti Surat</button>
+              </div>
+
+              <div class="search-input-wrapper" style="margin-bottom: 16px;">
+                <i class="fa-solid fa-search"></i>
+                <input type="text" id="searchBox" class="form-control" autocomplete="off"
+                       placeholder="Ketik minimal 2 huruf nama, NIP, atau NIS...">
+              </div>
+              <div id="searchResults" class="search-results"></div>
+              <div id="selectedPerson" class="selected-person-box" style="display:none; margin-top: 14px;"></div>
+            </div>
+
+            <!-- PANEL STEP 3: ISI DETAIL SURAT -->
+            <div id="stepPanel3" class="wizard-panel" style="display: none;">
+              <!-- Summary Pill Bar -->
+              <div style="background: var(--bg-primary); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;">
+                <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
+                  <span style="font-size: 13px; color: var(--text-secondary);"><i class="fa-solid fa-file-signature"></i> Surat: <strong id="step3SelectedSurat" style="color: var(--primary-navy);">-</strong></span>
+                  <span style="font-size: 13px; color: var(--text-secondary);"><i class="fa-solid fa-user-check"></i> Pemohon: <strong id="step3SelectedPerson" style="color: var(--primary-navy);">-</strong></span>
+                </div>
+                <button type="button" class="reset-link-btn" onclick="setWizardStep(2);" style="font-size: 12px;"><i class="fa-solid fa-user-pen"></i> Ganti Personel</button>
+              </div>
+
+              <div id="dynamicFields" class="fields-grid"></div>
+            </div>
+
+          </div>
+
+          <!-- Bottom Sticky Action Footer (Matching Reference Image) -->
+          <div class="dashboard-bottom-bar">
+            <div class="bottom-left-actions">
+              <button type="button" class="reset-link-btn" id="bottomResetBtn">
+                <i class="fa-solid fa-arrow-rotate-left"></i> Reset Form
+              </button>
+            </div>
+            <div class="bottom-right-actions">
+              <button type="button" class="btn-bottom-cancel" id="btnCancel">
+                Batal
+              </button>
+              <button type="button" id="previewBtn" class="btn-bottom-navy">
+                Lanjut ke Cari Personel <i class="fa-solid fa-arrow-right"></i>
+              </button>
+            </div>
+          </div>
+        </form>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL DATA GURU (DIRECTORY) -->
+  <div id="modalGuru" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="max-width: 820px;">
+      <div class="modal-header">
+        <h3 style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-chalkboard-user"></i> Direktori Data Guru & Staff</h3>
+        <button type="button" class="modal-close-btn" id="closeGuruModalBtn" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 16px;">
+          <input type="text" id="searchGuruModalInput" class="form-control" placeholder="Cari nama, NIP, atau jabatan guru/staff...">
+        </div>
+        <div id="guruModalList" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; max-height: 440px; overflow-y: auto;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DATA MURID (DIRECTORY) -->
+  <div id="modalMurid" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="max-width: 820px;">
+      <div class="modal-header">
+        <h3 style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-user-graduate"></i> Direktori Data Siswa & Murid</h3>
+        <button type="button" class="modal-close-btn" id="closeMuridModalBtn" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 16px;">
+          <input type="text" id="searchMuridModalInput" class="form-control" placeholder="Cari nama, NIS, NISN, atau kelas murid...">
+        </div>
+        <div id="muridModalList" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; max-height: 440px; overflow-y: auto;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL TEMPLATE GALLERY -->
+  <div id="modalTemplates" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="max-width: 820px;">
+      <div class="modal-header">
+        <h3 style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-file-word"></i> Galeri Template Dokumen (.docx Resmi SMADA)</h3>
+        <button type="button" class="modal-close-btn" id="closeTemplatesModalBtn" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="templatesModalGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
+          {% for key, info in jenis_surat.items() %}
+          <div class="surat-select-card" onclick="selectJenisSuratFromModal('{{ key }}')">
+            <div class="card-top">
+              <div class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></div>
+              <span class="header-pill-badge">{{ info.kategori | upper }}</span>
+            </div>
+            <div>
+              <div class="card-title-text">{{ info.label }}</div>
+              <div class="card-desc-text">{{ info.deskripsi or 'Template resmi SMADA.' }}</div>
+            </div>
+            <button type="button" class="btn-bottom-navy" style="padding: 6px 12px; font-size: 11px; margin-top: 6px;">Pilih Template</button>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL KODE KLASIFIKASI ARSIP -->
+  <div id="modalKodeArsip" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="max-width: 820px;">
+      <div class="modal-header">
+        <h3 style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-bookmark"></i> Kode Klasifikasi Arsip Surat SMAN 2 Wonosari 2025 (146 Kode)</h3>
+        <button type="button" class="modal-close-btn" id="closeKodeArsipModalBtn" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 16px;">
+          <input type="text" id="searchKodeArsipInput" class="form-control" placeholder="Cari kode (misal 00.1.2) atau keterangan klasifikasi arsip...">
+        </div>
+        <div id="kodeArsipList" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; max-height: 440px; overflow-y: auto;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL RIWAYAT SURAT LOG -->
+  <div id="modalRiwayat" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="max-width: 860px;">
+      <div class="modal-header">
+        <h3 style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-clock-rotate-left"></i> Riwayat Log Surat Terbuat (Database Tata Usaha)</h3>
+        <button type="button" class="modal-close-btn" id="closeRiwayatModalBtn" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="riwayatModalList" style="display: flex; flex-direction: column; gap: 10px; max-height: 460px; overflow-y: auto;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fullscreen Modal Overlay Pratinjau Surat -->
+  <div id="previewModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-file-invoice"></i> Pratinjau Surat Resmi SMAN 2 Wonosari</h3>
+        <button type="button" class="modal-close-btn" id="modalCloseBtn" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-paper">
+          <div class="modal-paper-kop" style="text-align: center; border-bottom: 3px double #000000; padding-bottom: 12px; margin-bottom: 20px;">
+            <img src="{{ url_for('static', filename='logo_smada.jpg') }}" alt="Logo SMADA" style="width: 56px; height: 56px; object-fit: contain;">
+            <div style="font-size: 12px; font-weight: bold; letter-spacing: 0.04em;">PEMERINTAH DAERAH DIY - DINAS PENDIDIKAN</div>
+            <div style="font-size: 18px; font-weight: bold;">SMA NEGERI 2 WONOSARI</div>
+            <div style="font-size: 11px; color: #475569;">Jl. Ki Ageng Giring 3, Kepek, Wonosari, Gunungkidul, Yogyakarta 55813</div>
+          </div>
+
+          <div id="modalDocTitle" style="text-align: center; font-size: 16px; font-weight: bold; text-decoration: underline;">SURAT PERMOHONAN</div>
+          <div id="modalDocNo" style="text-align: center; font-size: 13px; margin-bottom: 24px;">Nomor: -</div>
+
+          <div id="modalPaperBody">
+            <!-- Dynamically populated -->
+          </div>
+
+          <div style="margin-top: 32px; text-align: right;">
+            <div id="modalDocDate">Wonosari, -</div>
+            <div id="modalDocRole" style="margin-top: 4px; font-weight: bold;">Hormat kami,</div>
+            <div style="height: 60px;"></div>
+            <div id="modalDocName" style="font-weight: bold; text-decoration: underline;">-</div>
+            <div id="modalDocNip">NIP. -</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-bottom-cancel" id="modalEditBtn">
+          <i class="fa-solid fa-pen"></i> Edit Form
+        </button>
+        <button type="button" class="btn-bottom-navy" id="modalDownloadBtn">
+          <i class="fa-solid fa-download"></i> Unduh File Dokumen (.docx)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JSON Data Injection -->
+  <script id="jenisSuratDataJson" type="application/json">
+    {{ jenis_surat | tojson | safe }}
+  </script>
+
+  <script>
+    // Theme Toggle Script
+    const themeToggleBtn = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const htmlEl = document.documentElement;
+
+    themeToggleBtn.addEventListener('click', () => {
+      const currentTheme = htmlEl.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      htmlEl.setAttribute('data-theme', newTheme);
+      themeIcon.className = newTheme === 'light' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+    });
+
+    // Dynamic Form, Stepper & Card Handler
+    const jenisSuratData = JSON.parse(document.getElementById('jenisSuratDataJson').textContent);
+    const jenisInput = document.getElementById('jenisSurat');
+    const searchCard = document.getElementById('searchCard');
+    const searchBox = document.getElementById('searchBox');
+    const searchResults = document.getElementById('searchResults');
+    const idValueInput = document.getElementById('id_value');
+    const selectedPersonDiv = document.getElementById('selectedPerson');
+    const fieldsCard = document.getElementById('fieldsCard');
+    const dynamicFields = document.getElementById('dynamicFields');
+
+    const step1 = document.getElementById('stepIndicator1');
+    const step2 = document.getElementById('stepIndicator2');
+    const step3 = document.getElementById('stepIndicator3');
+    const step4 = document.getElementById('stepIndicator4');
+
+    // Live Preview elements
+    const previewTitle = document.getElementById('previewTitle');
+    const previewPerson = document.getElementById('previewPerson');
+    const previewIdLabel = document.getElementById('previewIdLabel');
+    const previewIdValue = document.getElementById('previewIdValue');
+    const previewSubLabel = document.getElementById('previewSubLabel');
+    const previewSubValue = document.getElementById('previewSubValue');
+    const previewDateStart = document.getElementById('previewDateStart');
+    const previewDateEnd = document.getElementById('previewDateEnd');
+    const previewReason = document.getElementById('previewReason');
+
+    let currentKategori = 'guru';
+    let currentJenis = null;
+    let searchTimeout = null;
+
+    // Category Tabs Logic
+    const categoryTabs = document.querySelectorAll('.category-tab');
+    const gridGuru = document.getElementById('gridGuru');
+    const gridMurid = document.getElementById('gridMurid');
+    const categoryBadge = document.getElementById('categoryBadge');
+
+    categoryTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        categoryTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        const kat = tab.getAttribute('data-kategori');
+        currentKategori = kat;
+        if (kat === 'guru') {
+          gridGuru.style.display = 'grid';
+          gridMurid.style.display = 'none';
+          categoryBadge.textContent = 'Kategori: Guru / Staff';
+          categoryBadge.className = 'header-pill-badge';
+        } else {
+          gridGuru.style.display = 'none';
+          gridMurid.style.display = 'grid';
+          categoryBadge.textContent = 'Kategori: Siswa / Murid';
+          categoryBadge.className = 'header-pill-badge purple';
+        }
+      });
+    });
+
+    // Category Cards Click Handler
+    const selectCards = document.querySelectorAll('.surat-select-card');
+    selectCards.forEach(card => {
+      card.addEventListener('click', () => {
+        selectCards.forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+
+        const key = card.getAttribute('data-key');
+        selectJenisSurat(key);
+      });
+    });
+
+    function selectJenisSurat(key) {
+      currentJenis = key;
+      jenisInput.value = key;
+
+      const info = jenisSuratData[currentJenis];
+      currentKategori = info.kategori;
+
+      // Update Preview Title
+      previewTitle.textContent = info.label.toUpperCase();
+
+      // Reset subsequent steps
+      searchBox.value = '';
+      idValueInput.value = '';
+      searchResults.innerHTML = '';
+      selectedPersonDiv.style.display = 'none';
+      fieldsCard.style.display = 'none';
+      dynamicFields.innerHTML = '';
+
+      previewPerson.innerHTML = '<span class="preview-placeholder">Belum dipilih</span>';
+      previewIdValue.innerHTML = '<span class="preview-placeholder">-</span>';
+      previewSubValue.innerHTML = '<span class="preview-placeholder">-</span>';
+      previewDateStart.innerHTML = '<span class="preview-placeholder">-</span>';
+      previewDateEnd.innerHTML = '<span class="preview-placeholder">-</span>';
+      previewReason.innerHTML = '<span class="preview-placeholder">-</span>';
+
+      // Update Steppers & Navigation Buttons
+      searchCard.style.display = 'flex';
+      setWizardStep(2);
+
+      searchBox.placeholder = currentKategori === 'guru'
+        ? 'Ketik nama atau NIP guru/staff...'
+        : 'Ketik nama, NIS, atau NISN murid...';
+      
+      previewIdLabel.textContent = currentKategori === 'guru' ? 'NIP' : 'NIS';
+      previewSubLabel.textContent = currentKategori === 'guru' ? 'Jabatan' : 'Kelas';
+    }
+
+    searchBox.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      const q = searchBox.value.trim();
+      if (q.length < 2) {
+        searchResults.innerHTML = '';
+        return;
+      }
+      searchTimeout = setTimeout(() => {
+        fetch(`/api/search?q=${encodeURIComponent(q)}&kategori=${currentKategori}`)
+          .then(r => r.json())
+          .then(renderResults);
+      }, 200);
+    });
+
+    function renderResults(results) {
+      if (results.length === 0) {
+        searchResults.innerHTML = '<div style="padding:14px; text-align:center; color:var(--text-muted); font-size:13px;"><i class="fa-solid fa-circle-exclamation"></i> Data tidak ditemukan di database.</div>';
+        return;
+      }
+      searchResults.innerHTML = results.map(p => {
+        const idField = currentKategori === 'guru' ? p.nip : p.nis;
+        const subtitle = currentKategori === 'guru'
+          ? `NIP: ${p.nip} — ${p.jabatan}`
+          : `NIS: ${p.nis} — Kelas ${p.kelas}`;
+        const badgeLabel = currentKategori === 'guru' ? 'Guru/Staff' : `Kelas ${p.kelas}`;
+        const detailSub = currentKategori === 'guru' ? p.jabatan : `NIS: ${p.nis}`;
+
+        return `<div class="result-item" data-id="${idField}" data-name="${p.nama}" data-sub="${detailSub}">
+                  <div>
+                    <strong style="font-size:14px; color:var(--text-primary); display:block;">${p.nama}</strong>
+                    <small style="font-size:12px; color:var(--text-secondary);">${subtitle}</small>
+                  </div>
+                  <span class="header-pill-badge">${badgeLabel}</span>
+                </div>`;
+      }).join('');
+
+      document.querySelectorAll('.result-item').forEach(el => {
+        el.addEventListener('click', () => selectPerson(el.dataset.id, el.dataset.name, el.dataset.sub));
+      });
+    }
+
+    function selectPerson(id, name, sub) {
+      idValueInput.value = id;
+      searchBox.value = name;
+      searchResults.innerHTML = '';
+      selectedPersonDiv.style.display = 'flex';
+      selectedPersonDiv.innerHTML = `
+        <div>
+          <strong style="font-size:14px;"><i class="fa-solid fa-circle-check"></i> ${name}</strong><br>
+          <small style="font-size:12px; opacity:0.9;">${currentKategori === 'guru' ? 'NIP' : 'NIS'}: ${id} — ${sub}</small>
+        </div>
+        <span class="header-pill-badge">Terpilih</span>
+      `;
+
+      previewPerson.textContent = name;
+      previewIdValue.textContent = id;
+      previewSubValue.textContent = sub;
+
+      loadFields(currentJenis);
+      setWizardStep(3);
+    }
+
+    function loadFields(jenis) {
+      fetch(`/api/fields/${jenis}`)
+        .then(r => r.json())
+        .then(info => {
+          const d = new Date();
+          const autoNo = `00.1.2.3/${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}/SMADA/${d.getFullYear()}`;
+          
+          let fieldsHtml = `
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label class="form-label">Nomor Surat Official (Dapat Diubah oleh TU)</label>
+              <input type="text" name="nomor_surat_custom" value="${autoNo}" class="form-control field-input" data-field="nomor_surat_custom" placeholder="cth: 00.1.2.3/045/SMADA/2026" required>
+            </div>
+          `;
+
+          fieldsHtml += info.fields.map(f => {
+            const defaultVal = f.default || '';
+            if (f.type === 'select') {
+              const opts = f.options.map(o => `<option value="${o}">${o}</option>`).join('');
+              return `<div class="form-group">
+                        <label class="form-label">${f.label}</label>
+                        <select name="${f.name}" class="form-control field-input" data-field="${f.name}" required>${opts}</select>
+                      </div>`;
+            }
+            const inputType = f.type === 'date' ? 'date' : 'text';
+            return `<div class="form-group">
+                      <label class="form-label">${f.label}</label>
+                      <input type="${inputType}" name="${f.name}" value="${defaultVal}"
+                             class="form-control field-input" data-field="${f.name}"
+                             placeholder="${f.placeholder || ''}" required>
+                    </div>`;
+          }).join('');
+
+          dynamicFields.innerHTML = fieldsHtml;
+
+          // Attach Live Input Listeners
+          document.querySelectorAll('.field-input').forEach(input => {
+            input.addEventListener('input', updatePreviewFields);
+            input.addEventListener('change', updatePreviewFields);
+          });
+          updatePreviewFields();
+        });
+    }
+
+    function updatePreviewFields() {
+      const inputs = document.querySelectorAll('.field-input');
+      inputs.forEach(input => {
+        const name = input.getAttribute('data-field');
+        const val = input.value;
+        if (name === 'tanggal_mulai') {
+          previewDateStart.textContent = val || '-';
+        } else if (name === 'tanggal_selesai') {
+          previewDateEnd.textContent = val || '-';
+        } else if (name === 'keperluan' || name === 'jenis_cuti') {
+          previewReason.textContent = val || '-';
+        }
+      });
+    }
+
+    // Interactive Sidebar Nav & Directory Modals
+    const modalGuru = document.getElementById('modalGuru');
+    const modalMurid = document.getElementById('modalMurid');
+    const modalTemplates = document.getElementById('modalTemplates');
+    const modalKodeArsip = document.getElementById('modalKodeArsip');
+    const modalRiwayat = document.getElementById('modalRiwayat');
+
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems[1].addEventListener('click', () => {
+      openGuruDirectory();
+    });
+    navItems[2].addEventListener('click', () => {
+      openMuridDirectory();
+    });
+    navItems[3].addEventListener('click', () => {
+      modalTemplates.style.display = 'flex';
+    });
+    if (navItems[4]) {
+      navItems[4].addEventListener('click', () => {
+        openRiwayatDirectory();
+      });
+    }
+    if (navItems[5]) {
+      navItems[5].addEventListener('click', () => {
+        openKodeArsipDirectory();
+      });
+    }
+
+    document.getElementById('closeGuruModalBtn').addEventListener('click', () => { modalGuru.style.display = 'none'; });
+    document.getElementById('closeMuridModalBtn').addEventListener('click', () => { modalMurid.style.display = 'none'; });
+    document.getElementById('closeTemplatesModalBtn').addEventListener('click', () => { modalTemplates.style.display = 'none'; });
+    document.getElementById('closeKodeArsipModalBtn').addEventListener('click', () => { modalKodeArsip.style.display = 'none'; });
+    document.getElementById('closeRiwayatModalBtn').addEventListener('click', () => { modalRiwayat.style.display = 'none'; });
+
+    // Open & Load Guru Directory
+    function openGuruDirectory() {
+      fetch('/api/list/guru')
+        .then(r => r.json())
+        .then(data => {
+          renderGuruModalList(data);
+          modalGuru.style.display = 'flex';
+        });
+    }
+
+    function renderGuruModalList(data) {
+      const listEl = document.getElementById('guruModalList');
+      if (data.length === 0) {
+        listEl.innerHTML = '<div style="grid-column:1/-1; padding:20px; text-align:center; color:var(--text-muted);">Tidak ditemukan.</div>';
+        return;
+      }
+      listEl.innerHTML = data.map(g => `
+        <div class="surat-select-card" onclick="selectPersonFromModal('${g.nip}', '${g.nama}', '${g.jabatan}', 'guru')">
+          <div class="card-top">
+            <strong style="font-size:14px; color:var(--text-primary);">${g.nama}</strong>
+            <span class="header-pill-badge">${g.status_pegawai || 'GURU'}</span>
+          </div>
+          <div style="font-size:12px; color:var(--text-secondary); font-weight:600;">NIP: ${g.nip}</div>
+          <div style="font-size:11px; color:var(--text-muted);">${g.jabatan} | Gol: ${g.golongan || '-'}</div>
+          <div style="font-size:11px; color:var(--text-muted); italic;">TTL: ${g.ttl || '-'}</div>
+          <button type="button" class="btn-bottom-navy" style="padding:6px 12px; font-size:11px; margin-top:6px;">Pilih Personel</button>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('searchGuruModalInput').addEventListener('input', (e) => {
+      const q = e.target.value.trim();
+      fetch(`/api/list/guru?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(renderGuruModalList);
+    });
+
+    // Open & Load Murid Directory
+    function openMuridDirectory() {
+      fetch('/api/list/murid')
+        .then(r => r.json())
+        .then(data => {
+          renderMuridModalList(data);
+          modalMurid.style.display = 'flex';
+        });
+    }
+
+    function renderMuridModalList(data) {
+      const listEl = document.getElementById('muridModalList');
+      if (data.length === 0) {
+        listEl.innerHTML = '<div style="grid-column:1/-1; padding:20px; text-align:center; color:var(--text-muted);">Tidak ditemukan.</div>';
+        return;
+      }
+      listEl.innerHTML = data.map(m => `
+        <div class="surat-select-card" onclick="selectPersonFromModal('${m.nis}', '${m.nama}', 'Kelas ${m.kelas}', 'murid')">
+          <div class="card-top">
+            <strong style="font-size:14px; color:var(--text-primary);">${m.nama}</strong>
+            <span class="header-pill-badge purple">KELAS ${m.kelas}</span>
+          </div>
+          <div style="font-size:12px; color:var(--text-secondary); font-weight:600;">NIS: ${m.nis} | NISN: ${m.nisn || '-'}</div>
+          <div style="font-size:11px; color:var(--text-muted);">Gender: ${m.jk === 'L' ? 'Laki-laki' : 'Perempuan'} | Agama: ${m.agama || '-'}</div>
+          <button type="button" class="btn-bottom-navy" style="padding:6px 12px; font-size:11px; margin-top:6px;">Pilih Siswa</button>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('searchMuridModalInput').addEventListener('input', (e) => {
+      const q = e.target.value.trim();
+      fetch(`/api/list/murid?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(renderMuridModalList);
+    });
+
+    // Open & Load Riwayat Surat Log for TU
+    function openRiwayatDirectory() {
+      fetch('/api/list/riwayat')
+        .then(r => r.json())
+        .then(data => {
+          renderRiwayatModalList(data);
+          modalRiwayat.style.display = 'flex';
+        });
+    }
+
+    function renderRiwayatModalList(data) {
+      const listEl = document.getElementById('riwayatModalList');
+      if (data.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-muted); font-size:13px;"><i class="fa-solid fa-clock"></i> Belum ada riwayat surat yang terbuat. Surat yang dibuat akan otomatis tercatat di sini!</div>';
+        return;
+      }
+      listEl.innerHTML = data.map(r => `
+        <div style="background:var(--card-bg); border:1px solid var(--card-border); border-radius:12px; padding:14px; display:flex; align-items:center; justify-content:space-between;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+              <strong style="font-size:14px; color:var(--text-primary);">${r.jenis_surat}</strong>
+              <span class="header-pill-badge">${r.kategori === 'guru' ? 'GURU/STAFF' : 'SISWA'}</span>
+            </div>
+            <div style="font-size:12px; color:var(--primary-navy); font-weight:700;">Nomor: ${r.nomor_surat}</div>
+            <div style="font-size:12px; color:var(--text-secondary);">Pemohon: <strong>${r.nama_pemohon}</strong> (${r.id_pemohon})</div>
+            <div style="font-size:11px; color:var(--text-muted);">Keperluan: ${r.keperluan}</div>
+          </div>
+          <div style="text-align:right;">
+            <span style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:6px;"><i class="fa-solid fa-calendar"></i> ${r.created_at}</span>
+            <span class="header-pill-badge" style="background:#ecfdf5; color:#047857; border-color:#a7f3d0;"><i class="fa-solid fa-check"></i> Terbuat</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Open & Load Kode Klasifikasi Arsip Directory
+    function openKodeArsipDirectory() {
+      fetch('/api/list/kode_arsip')
+        .then(r => r.json())
+        .then(data => {
+          renderKodeArsipModalList(data);
+          modalKodeArsip.style.display = 'flex';
+        });
+    }
+
+    function renderKodeArsipModalList(data) {
+      const listEl = document.getElementById('kodeArsipList');
+      if (data.length === 0) {
+        listEl.innerHTML = '<div style="grid-column:1/-1; padding:20px; text-align:center; color:var(--text-muted);">Kode arsip tidak ditemukan.</div>';
+        return;
+      }
+      listEl.innerHTML = data.map(k => `
+        <div class="surat-select-card">
+          <div class="card-top">
+            <strong style="font-size:14px; color:var(--primary-navy);">${k.kode}</strong>
+            <span class="header-pill-badge">KODE ARSIP</span>
+          </div>
+          <div style="font-size:12px; color:var(--text-primary); font-weight:600;">${k.keterangan}</div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('searchKodeArsipInput').addEventListener('input', (e) => {
+      const q = e.target.value.trim();
+      fetch(`/api/list/kode_arsip?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(renderKodeArsipModalList);
+    });
+
+    // Select Person directly from Directory Modals
+    window.selectPersonFromModal = function(id, name, sub, kategori) {
+      // Switch tab if needed
+      if (kategori !== currentKategori) {
+        const tab = document.querySelector(`.category-tab[data-kategori="${kategori}"]`);
+        if (tab) tab.click();
+      }
+      modalGuru.style.display = 'none';
+      modalMurid.style.display = 'none';
+
+      // Auto pick first template if none selected
+      if (!currentJenis) {
+        const firstCard = document.querySelector(`.surat-select-card[data-kategori="${kategori}"]`);
+        if (firstCard) firstCard.click();
+      }
+
+      selectPerson(id, name, sub);
+    };
+
+    window.selectJenisSuratFromModal = function(key) {
+      modalTemplates.style.display = 'none';
+      const card = document.querySelector(`.surat-select-card[data-key="${key}"]`);
+      if (card) {
+        const kat = card.getAttribute('data-kategori');
+        const tab = document.querySelector(`.category-tab[data-kategori="${kat}"]`);
+        if (tab) tab.click();
+        card.click();
+      }
+    };
+
+    let currentWizardStep = 1;
+
+    function setWizardStep(step) {
+      currentWizardStep = step;
+      const steps = [step1, step2, step3, step4];
+      steps.forEach((s, idx) => {
+        if (idx + 1 < currentWizardStep) {
+          s.className = 'stepper-circle-item completed';
+        } else if (idx + 1 === currentWizardStep) {
+          s.className = 'stepper-circle-item active';
+        } else {
+          s.className = 'stepper-circle-item';
+        }
+      });
+
+      const panel1 = document.getElementById('stepPanel1');
+      const panel2 = document.getElementById('stepPanel2');
+      const panel3 = document.getElementById('stepPanel3');
+
+      const headerIcon = document.getElementById('wizardHeaderIcon');
+      const headerTitle = document.getElementById('wizardHeaderTitle');
+      const headerBadge = document.getElementById('wizardHeaderBadge');
+
+      const btnCancel = document.getElementById('btnCancel');
+      const previewBtn = document.getElementById('previewBtn');
+
+      if (currentWizardStep === 1) {
+        panel1.style.display = 'block';
+        panel2.style.display = 'none';
+        panel3.style.display = 'none';
+
+        headerIcon.className = 'fa-solid fa-layer-group';
+        headerTitle.textContent = 'Langkah 1: Kategori & Jenis Surat';
+        headerBadge.textContent = 'Kategori: ' + (currentKategori === 'guru' ? 'Guru / Staff' : 'Siswa / Murid');
+        headerBadge.className = currentKategori === 'guru' ? 'header-pill-badge' : 'header-pill-badge purple';
+
+        btnCancel.innerHTML = 'Batal';
+        btnCancel.onclick = () => location.reload();
+        previewBtn.innerHTML = 'Lanjut ke Cari Personel <i class="fa-solid fa-arrow-right"></i>';
+
+      } else if (currentWizardStep === 2) {
+        panel1.style.display = 'none';
+        panel2.style.display = 'block';
+        panel3.style.display = 'none';
+
+        const info = jenisSuratData[currentJenis] || {};
+        document.getElementById('step2SelectedSurat').textContent = info.label || currentJenis;
+
+        headerIcon.className = 'fa-solid fa-magnifying-glass';
+        headerTitle.textContent = 'Langkah 2: Pencarian Data Personel';
+        headerBadge.textContent = currentKategori === 'guru' ? 'Database Guru' : 'Database Murid';
+        headerBadge.className = 'header-pill-badge purple';
+
+        btnCancel.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Kembali';
+        btnCancel.onclick = () => setWizardStep(1);
+        previewBtn.innerHTML = 'Lanjut ke Isi Detail <i class="fa-solid fa-arrow-right"></i>';
+
+        setTimeout(() => searchBox.focus(), 100);
+
+      } else if (currentWizardStep === 3) {
+        panel1.style.display = 'none';
+        panel2.style.display = 'none';
+        panel3.style.display = 'block';
+
+        const info = jenisSuratData[currentJenis] || {};
+        document.getElementById('step3SelectedSurat').textContent = info.label || currentJenis;
+        document.getElementById('step3SelectedPerson').textContent = previewPerson.textContent || '-';
+
+        headerIcon.className = 'fa-solid fa-pen-to-square';
+        headerTitle.textContent = 'Langkah 3: Parameter & Rincian Surat';
+        headerBadge.textContent = 'Formulir Detail';
+        headerBadge.className = 'header-pill-badge';
+
+        btnCancel.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Kembali';
+        btnCancel.onclick = () => setWizardStep(2);
+        previewBtn.innerHTML = 'Lanjutkan ke Pratinjau <i class="fa-solid fa-arrow-right"></i>';
+
+        setTimeout(() => {
+          const firstInp = panel3.querySelector('input[type="date"], input[type="text"]');
+          if (firstInp) firstInp.focus();
+        }, 100);
+      }
+    }
+
+    // Initialize Step 1 navigation buttons
+    setWizardStep(1);
+
+    // Stepper Item Clicks (Interactive Stepper)
+    step1.addEventListener('click', () => {
+      setWizardStep(1);
+    });
+    step2.addEventListener('click', () => {
+      if (currentJenis) {
+        setWizardStep(2);
+      } else {
+        alert('Silakan pilih jenis surat pada Langkah 1 terlebih dahulu.');
+      }
+    });
+    step3.addEventListener('click', () => {
+      if (idValueInput.value) {
+        setWizardStep(3);
+      } else {
+        alert('Silakan pilih data Guru/Staff atau Murid pada Langkah 2 terlebih dahulu.');
+      }
+    });
+    step4.addEventListener('click', () => {
+      if (idValueInput.value && currentWizardStep === 3) {
+        previewBtn.click();
+      }
+    });
+
+    // Reset Buttons Handler
+    const resetFn = () => { location.reload(); };
+    document.getElementById('sidebarResetBtn').addEventListener('click', resetFn);
+    document.getElementById('bottomResetBtn').addEventListener('click', resetFn);
+
+    // Modal Preview Handlers
+    const previewBtn = document.getElementById('previewBtn');
+    const previewModal = document.getElementById('previewModal');
+    const modalCloseBtn = document.getElementById('modalCloseBtn');
+    const modalEditBtn = document.getElementById('modalEditBtn');
+    const modalDownloadBtn = document.getElementById('modalDownloadBtn');
+    const suratForm = document.getElementById('suratForm');
+
+    previewBtn.addEventListener('click', () => {
+      if (currentWizardStep === 1) {
+        if (!jenisInput.value) {
+          alert('Silakan pilih salah satu jenis surat pada Langkah 1 terlebih dahulu.');
+          return;
+        }
+        searchCard.style.display = 'flex';
+        setWizardStep(2);
+        setTimeout(() => {
+          searchCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          searchBox.focus();
+        }, 150);
+      } else if (currentWizardStep === 2) {
+        if (!idValueInput.value) {
+          alert('Silakan cari dan pilih data Guru/Staff atau Murid pada Langkah 2 terlebih dahulu.');
+          return;
+        }
+        loadFields(currentJenis);
+        setWizardStep(3);
+      } else if (currentWizardStep === 3) {
+        if (!suratForm.reportValidity()) {
+          return; // Validasi bawaan browser akan menyorot kolom input yang belum diisi
+        }
+        const formData = new FormData(suratForm);
+        fetch('/api/preview_render', {
+          method: 'POST',
+          body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            alert(data.error);
+            return;
+          }
+          const info = data.info;
+          const ctx = data.context;
+          const p = data.person;
+
+          document.getElementById('modalDocTitle').textContent = info.label.toUpperCase();
+          document.getElementById('modalDocNo').textContent = 'Nomor: ' + ctx.nomor_surat;
+          document.getElementById('modalDocDate').textContent = 'Wonosari, ' + ctx.tanggal_surat;
+
+          if (info.kategori === 'guru') {
+            document.getElementById('modalDocRole').textContent = 'Hormat saya / Pemohon,';
+            document.getElementById('modalDocName').textContent = p.nama;
+            document.getElementById('modalDocNip').textContent = 'NIP. ' + p.nip;
+          } else {
+            document.getElementById('modalDocRole').textContent = ctx.nama_kepsek ? 'Kepala Sekolah,' : 'Orang Tua / Wali,';
+            document.getElementById('modalDocName').textContent = ctx.nama_kepsek || ctx.nama_wali || p.nama;
+            document.getElementById('modalDocNip').textContent = ctx.nip_kepsek ? ('NIP. ' + ctx.nip_kepsek) : '';
+          }
+
+          let bodyHtml = `
+            <div style="margin-bottom:12px; font-family:'Times New Roman', serif;">Yang bertanda tangan di bawah ini:</div>
+            <table style="width:100%; border-collapse:collapse; margin-bottom:16px; font-family:'Times New Roman', serif; font-size:14px; color:var(--text-primary);">
+              <tr>
+                <td style="width:170px; padding:3px 0; vertical-align:top;">Nama</td>
+                <td style="width:16px; padding:3px 0; vertical-align:top; text-align:center;">:</td>
+                <td style="padding:3px 0; vertical-align:top; font-weight:700;">${p.nama}</td>
+              </tr>
+              <tr>
+                <td style="padding:3px 0; vertical-align:top;">${info.kategori === 'guru' ? 'NIP' : 'NIS / NISN'}</td>
+                <td style="padding:3px 0; vertical-align:top; text-align:center;">:</td>
+                <td style="padding:3px 0; vertical-align:top; font-weight:700;">${info.kategori === 'guru' ? p.nip : (p.nis + (p.nisn ? (' / ' + p.nisn) : ''))}</td>
+              </tr>
+              <tr>
+                <td style="padding:3px 0; vertical-align:top;">${info.kategori === 'guru' ? 'Jabatan' : 'Kelas'}</td>
+                <td style="padding:3px 0; vertical-align:top; text-align:center;">:</td>
+                <td style="padding:3px 0; vertical-align:top;">${info.kategori === 'guru' ? p.jabatan : ('Kelas ' + p.kelas)}</td>
+              </tr>
+          `;
+
+          if (info.kategori === 'guru' && p.golongan) {
+            bodyHtml += `
+              <tr>
+                <td style="padding:3px 0; vertical-align:top;">Pangkat / Golongan</td>
+                <td style="padding:3px 0; vertical-align:top; text-align:center;">:</td>
+                <td style="padding:3px 0; vertical-align:top;">${p.golongan}</td>
+              </tr>
+            `;
+          }
+
+          info.fields.forEach(f => {
+            const val = ctx[f.name] || '-';
+            bodyHtml += `
+              <tr>
+                <td style="padding:3px 0; vertical-align:top;">${f.label}</td>
+                <td style="padding:3px 0; vertical-align:top; text-align:center;">:</td>
+                <td style="padding:3px 0; vertical-align:top;">${val}</td>
+              </tr>
+            `;
+          });
+
+          bodyHtml += `</table>`;
+
+          document.getElementById('modalPaperBody').innerHTML = bodyHtml;
+          setWizardStep(4);
+          previewModal.style.display = 'flex';
+        });
+      }
+    });
+
+    modalCloseBtn.addEventListener('click', () => { previewModal.style.display = 'none'; });
+    modalEditBtn.addEventListener('click', () => { previewModal.style.display = 'none'; });
+    modalDownloadBtn.addEventListener('click', () => {
+      suratForm.submit();
+    });
+  </script>
+</body>
+</html>
