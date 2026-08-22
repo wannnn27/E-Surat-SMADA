@@ -110,7 +110,23 @@
 
             <!-- PANEL STEP 1: PILIH JENIS SURAT -->
             <div id="stepPanel1" class="wizard-panel">
-              <!-- Category Tabs Switcher -->
+              <!-- Mobile Template Bank Selector Trigger Box (Shows on Mobile Screens <= 768px) -->
+              <div class="template-bank-mobile-box" id="openMobileTemplateModal">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div class="card-icon-box" style="width: 42px; height: 42px; background: rgba(15, 23, 42, 0.06); color: var(--primary-navy); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">
+                    <i class="fa-solid fa-folder-open"></i>
+                  </div>
+                  <div>
+                    <strong style="font-size: 14px; color: var(--text-primary); display: block;" id="mobileSelectedSuratTitle">Bank Template Surat SMADA</strong>
+                    <small style="font-size: 12px; color: var(--text-secondary);" id="mobileSelectedSuratSub">Ketuk untuk memilih dari 20 template resmi</small>
+                  </div>
+                </div>
+                <button type="button" class="btn-bottom-cancel" style="padding: 8px 14px; font-size: 12px; font-weight: 700; white-space: nowrap;">
+                  Buka Bank <i class="fa-solid fa-chevron-right" style="margin-left: 4px;"></i>
+                </button>
+              </div>
+
+              <!-- Category Tabs Switcher (Desktop & Mobile Tablet) -->
               <div class="category-tabs-container" style="margin-bottom: 16px;">
                 <button type="button" class="category-tab active" data-kategori="guru">
                   <i class="fa-solid fa-chalkboard-user"></i> Guru & Staff
@@ -441,8 +457,12 @@
       const info = jenisSuratData[currentJenis];
       currentKategori = info.kategori;
 
-      // Update Preview Title
+      // Update Preview & Mobile Trigger Labels
       previewTitle.textContent = info.label.toUpperCase();
+      const mobTitle = document.getElementById('mobileSelectedSuratTitle');
+      const mobSub = document.getElementById('mobileSelectedSuratSub');
+      if (mobTitle) mobTitle.textContent = info.label;
+      if (mobSub) mobSub.textContent = info.deskripsi || 'Template resmi SMADA';
 
       // Reset subsequent steps
       searchBox.value = '';
@@ -616,6 +636,13 @@
     if (navItems[5]) {
       navItems[5].addEventListener('click', () => {
         openKodeArsipDirectory();
+      });
+    }
+
+    const mobileTrigger = document.getElementById('openMobileTemplateModal');
+    if (mobileTrigger) {
+      mobileTrigger.addEventListener('click', () => {
+        modalTemplates.style.display = 'flex';
       });
     }
 

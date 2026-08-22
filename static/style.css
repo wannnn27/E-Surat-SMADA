@@ -932,13 +932,41 @@ input.form-control:focus {
     gap: 8px;
   }
 
+/* Template Bank Mobile Trigger Box */
+.template-bank-mobile-box {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .template-bank-mobile-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px;
+    background: var(--bg-primary);
+    border: 1.5px dashed var(--primary-navy);
+    border-radius: 14px;
+    margin-bottom: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .template-bank-mobile-box:active {
+    transform: scale(0.98);
+    background: rgba(15, 23, 42, 0.05);
+  }
+
   .surat-card-grid {
     grid-template-columns: 1fr;
     gap: 10px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding-right: 4px;
   }
 
   .surat-select-card {
-    padding: 14px 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
   }
 
   /* Sticky Bottom Bar on Mobile */
