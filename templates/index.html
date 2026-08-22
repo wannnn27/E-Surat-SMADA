@@ -14,8 +14,16 @@
     <aside class="app-sidebar">
       <div class="sidebar-top">
         <div class="sidebar-brand">
-          <img src="{{ url_for('static', filename='smada.png') }}" alt="Logo SMADA" class="sidebar-logo-img" style="width: 32px; height: 32px; object-fit: contain;">
-          <div class="sidebar-brand-name">E-SURAT SMADA</div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="{{ url_for('static', filename='smada.png') }}" alt="Logo SMADA" class="sidebar-logo-img" style="width: 32px; height: 32px; object-fit: contain;">
+            <div class="sidebar-brand-name">E-SURAT SMADA</div>
+          </div>
+          <!-- Mobile Header Controls: reset button (only visible on mobile/tablet) -->
+          <div class="mobile-header-controls">
+            <button type="button" class="reset-link-btn mobile-reset-btn" id="mobileResetBtn" title="Reset Form" style="color: #cbd5e1; font-size: 13px; padding: 4px 6px; display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+            </button>
+          </div>
         </div>
 
         <nav class="sidebar-nav">
@@ -44,9 +52,7 @@
         <button type="button" class="reset-link-btn" id="sidebarResetBtn">
           <i class="fa-solid fa-arrow-rotate-left"></i> Reset Form
         </button>
-        <button type="button" class="theme-toggle-btn" id="themeToggle" title="Beralih Tema (Gelap/Terang)">
-          <i class="fa-solid fa-moon" id="themeIcon"></i>
-        </button>
+      </div>
       </div>
     </aside>
 
@@ -310,7 +316,7 @@
       <div class="modal-body">
         <div id="templatesModalGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
           {% for key, info in jenis_surat.items() %}
-          <div class="surat-select-card" onclick="selectJenisSuratFromModal('{{ key }}')">
+          <div class="surat-select-card" data-key="{{ key }}" onclick="selectJenisSuratFromModal('{{ key }}')">
             <div class="card-top">
               <div class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></div>
               <span class="header-pill-badge">{{ info.kategori | upper }}</span>
@@ -409,44 +415,19 @@
   </script>
 
   <script>
-    // Theme Toggle Script
-    const themeToggleBtn = document.getElementById('themeToggle');
-    const themeIcon = document.getElementById('themeIcon');
-    const htmlEl = document.documentElement;
-
-    themeToggleBtn.addEventListener('click', () => {
-      const currentTheme = htmlEl.getAttribute('data-theme');
-      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-      htmlEl.setAttribute('data-theme', newTheme);
-      themeIcon.className = newTheme === 'light' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
-    });
-
     // Dynamic Form, Stepper & Card Handler
     const jenisSuratData = JSON.parse(document.getElementById('jenisSuratDataJson').textContent);
     const jenisInput = document.getElementById('jenisSurat');
-    const searchCard = document.getElementById('searchCard');
     const searchBox = document.getElementById('searchBox');
     const searchResults = document.getElementById('searchResults');
     const idValueInput = document.getElementById('id_value');
     const selectedPersonDiv = document.getElementById('selectedPerson');
-    const fieldsCard = document.getElementById('fieldsCard');
     const dynamicFields = document.getElementById('dynamicFields');
 
     const step1 = document.getElementById('stepIndicator1');
     const step2 = document.getElementById('stepIndicator2');
     const step3 = document.getElementById('stepIndicator3');
     const step4 = document.getElementById('stepIndicator4');
-
-    // Live Preview elements
-    const previewTitle = document.getElementById('previewTitle');
-    const previewPerson = document.getElementById('previewPerson');
-    const previewIdLabel = document.getElementById('previewIdLabel');
-    const previewIdValue = document.getElementById('previewIdValue');
-    const previewSubLabel = document.getElementById('previewSubLabel');
-    const previewSubValue = document.getElementById('previewSubValue');
-    const previewDateStart = document.getElementById('previewDateStart');
-    const previewDateEnd = document.getElementById('previewDateEnd');
-    const previewReason = document.getElementById('previewReason');
 
     let currentKategori = 'guru';
     let currentJenis = null;
@@ -456,7 +437,7 @@
     const categoryTabs = document.querySelectorAll('.category-tab');
     const gridGuru = document.getElementById('gridGuru');
     const gridMurid = document.getElementById('gridMurid');
-    const categoryBadge = document.getElementById('categoryBadge');
+    const wizardHeaderBadge = document.getElementById('wizardHeaderBadge');
 
     categoryTabs.forEach(tab => {
       tab.addEventListener('click', () => {
@@ -468,68 +449,71 @@
         if (kat === 'guru') {
           gridGuru.style.display = 'grid';
           gridMurid.style.display = 'none';
-          categoryBadge.textContent = 'Kategori: Guru / Staff';
-          categoryBadge.className = 'header-pill-badge';
+          if (wizardHeaderBadge) {
+            wizardHeaderBadge.textContent = 'Kategori: Guru / Staff';
+            wizardHeaderBadge.className = 'header-pill-badge';
+          }
         } else {
           gridGuru.style.display = 'none';
           gridMurid.style.display = 'grid';
-          categoryBadge.textContent = 'Kategori: Siswa / Murid';
-          categoryBadge.className = 'header-pill-badge purple';
+          if (wizardHeaderBadge) {
+            wizardHeaderBadge.textContent = 'Kategori: Siswa / Murid';
+            wizardHeaderBadge.className = 'header-pill-badge purple';
+          }
         }
       });
     });
 
     // Category Cards Click Handler
-    const selectCards = document.querySelectorAll('.surat-select-card');
+    const selectCards = document.querySelectorAll('.surat-card-grid .surat-select-card');
     selectCards.forEach(card => {
       card.addEventListener('click', () => {
-        selectCards.forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
-
         const key = card.getAttribute('data-key');
-        selectJenisSurat(key);
+        if (key) {
+          selectJenisSurat(key);
+        }
       });
     });
 
     function selectJenisSurat(key) {
+      if (!key || !jenisSuratData[key]) return;
+
       currentJenis = key;
       jenisInput.value = key;
 
       const info = jenisSuratData[currentJenis];
       currentKategori = info.kategori;
 
-      // Update Preview & Mobile Trigger Labels
-      previewTitle.textContent = info.label.toUpperCase();
+      // Highlight active card across all grids
+      document.querySelectorAll('.surat-select-card').forEach(c => {
+        if (c.getAttribute('data-key') === key) {
+          c.classList.add('active');
+        } else {
+          c.classList.remove('active');
+        }
+      });
+
+      // Update Mobile Trigger Labels
       const mobTitle = document.getElementById('mobileSelectedSuratTitle');
       const mobSub = document.getElementById('mobileSelectedSuratSub');
       if (mobTitle) mobTitle.textContent = info.label;
       if (mobSub) mobSub.textContent = info.deskripsi || 'Template resmi SMADA';
 
       // Reset subsequent steps
-      searchBox.value = '';
-      idValueInput.value = '';
-      searchResults.innerHTML = '';
-      selectedPersonDiv.style.display = 'none';
-      fieldsCard.style.display = 'none';
-      dynamicFields.innerHTML = '';
+      if (searchBox) searchBox.value = '';
+      if (idValueInput) idValueInput.value = '';
+      if (searchResults) searchResults.innerHTML = '';
+      if (selectedPersonDiv) selectedPersonDiv.style.display = 'none';
+      if (dynamicFields) dynamicFields.innerHTML = '';
 
-      previewPerson.innerHTML = '<span class="preview-placeholder">Belum dipilih</span>';
-      previewIdValue.innerHTML = '<span class="preview-placeholder">-</span>';
-      previewSubValue.innerHTML = '<span class="preview-placeholder">-</span>';
-      previewDateStart.innerHTML = '<span class="preview-placeholder">-</span>';
-      previewDateEnd.innerHTML = '<span class="preview-placeholder">-</span>';
-      previewReason.innerHTML = '<span class="preview-placeholder">-</span>';
-
-      // Update Steppers & Navigation Buttons
-      searchCard.style.display = 'flex';
+      // Advance wizard to Step 2
       setWizardStep(2);
 
-      searchBox.placeholder = currentKategori === 'guru'
-        ? 'Ketik nama atau NIP guru/staff...'
-        : 'Ketik nama, NIS, atau NISN murid...';
-      
-      previewIdLabel.textContent = currentKategori === 'guru' ? 'NIP' : 'NIS';
-      previewSubLabel.textContent = currentKategori === 'guru' ? 'Jabatan' : 'Kelas';
+      if (searchBox) {
+        searchBox.placeholder = currentKategori === 'guru'
+          ? 'Ketik nama atau NIP guru/staff...'
+          : 'Ketik nama, NIS, atau NISN murid...';
+      }
     }
 
     searchBox.addEventListener('input', () => {
@@ -585,10 +569,6 @@
         </div>
         <span class="header-pill-badge">Terpilih</span>
       `;
-
-      previewPerson.textContent = name;
-      previewIdValue.textContent = id;
-      previewSubValue.textContent = sub;
 
       loadFields(currentJenis);
       setWizardStep(3);
@@ -856,13 +836,16 @@
 
     window.selectJenisSuratFromModal = function(key) {
       modalTemplates.style.display = 'none';
-      const card = document.querySelector(`.surat-select-card[data-key="${key}"]`);
-      if (card) {
-        const kat = card.getAttribute('data-kategori');
-        const tab = document.querySelector(`.category-tab[data-kategori="${kat}"]`);
-        if (tab) tab.click();
-        card.click();
+      const info = jenisSuratData[key];
+      if (!info) return;
+
+      const kat = info.kategori;
+      const tab = document.querySelector(`.category-tab[data-kategori="${kat}"]`);
+      if (tab && !tab.classList.contains('active')) {
+        tab.click();
       }
+
+      selectJenisSurat(key);
     };
 
     let currentWizardStep = 1;
@@ -931,7 +914,7 @@
 
         const info = jenisSuratData[currentJenis] || {};
         document.getElementById('step3SelectedSurat').textContent = info.label || currentJenis;
-        document.getElementById('step3SelectedPerson').textContent = previewPerson.textContent || '-';
+        document.getElementById('step3SelectedPerson').textContent = searchBox.value || '-';
 
         headerIcon.className = 'fa-solid fa-pen-to-square';
         headerTitle.textContent = 'Langkah 3: Parameter & Rincian Surat';
@@ -980,6 +963,8 @@
     const resetFn = () => { location.reload(); };
     document.getElementById('sidebarResetBtn').addEventListener('click', resetFn);
     document.getElementById('bottomResetBtn').addEventListener('click', resetFn);
+    const mobileResetEl = document.getElementById('mobileResetBtn');
+    if (mobileResetEl) mobileResetEl.addEventListener('click', resetFn);
 
     // Modal Preview Handlers
     const previewBtn = document.getElementById('previewBtn');
@@ -995,10 +980,8 @@
           alert('Silakan pilih salah satu jenis surat pada Langkah 1 terlebih dahulu.');
           return;
         }
-        searchCard.style.display = 'flex';
         setWizardStep(2);
         setTimeout(() => {
-          searchCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
           searchBox.focus();
         }, 150);
       } else if (currentWizardStep === 2) {

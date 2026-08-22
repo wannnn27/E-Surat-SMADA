@@ -42,8 +42,9 @@ surat-app/
 
 ## 🚀 Cara Menjalankan Aplikasi
 
-1. **Install Pustaka Dependensi**:
+1. **Masuk ke folder projek & Install Dependensi**:
    ```bash
+   cd surat-app
    pip install -r requirements.txt
    ```
 

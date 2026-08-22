@@ -161,17 +161,7 @@ body {
   background: var(--card-border);
 }
 
-@media (max-width: 768px) {
-  .stats-summary-strip {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    padding: 12px;
-  }
-  .stat-divider {
-    display: none;
-  }
-}
+/* Stats mobile override — full block in media query at bottom */
 
 /* Overall Dashboard Shell */
 .app-container {
@@ -286,6 +276,35 @@ body {
 
 .reset-link-btn:hover {
   color: #f87171;
+}
+
+/* Theme Toggle Button */
+.theme-toggle-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 15px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+/* Mobile Header Controls — hidden by default, shown on mobile */
+.mobile-header-controls {
+  display: none;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Main Dashboard Workspace */
@@ -942,7 +961,9 @@ input.form-control:focus {
    RESPONSIVE MEDIA QUERIES (ALL DEVICES)
    ========================================================================== */
 
-/* Tablets & Mobile Screens (<= 1024px) */
+/* ==========================================================================
+   TABLETS (≤ 1024px)
+   ========================================================================== */
 @media (max-width: 1024px) {
   .app-container {
     flex-direction: column;
@@ -952,17 +973,17 @@ input.form-control:focus {
     width: 100%;
     border-right: none;
     border-bottom: 1px solid var(--sidebar-border);
-    padding: 12px 16px;
+    padding: 10px 16px;
     flex-direction: column;
     align-items: stretch;
-    gap: 12px;
+    gap: 8px;
     background: var(--sidebar-bg);
   }
 
   .sidebar-top {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
   }
 
@@ -971,12 +992,18 @@ input.form-control:focus {
     align-items: center;
     justify-content: space-between;
     width: 100%;
+    padding: 2px 0;
+  }
+
+  /* Show mobile controls (theme toggle) on tablet/mobile */
+  .mobile-header-controls {
+    display: flex;
   }
 
   .sidebar-nav {
     display: flex;
     flex-direction: row;
-    gap: 6px;
+    gap: 4px;
     overflow-x: auto;
     white-space: nowrap;
     padding-bottom: 4px;
@@ -990,9 +1017,20 @@ input.form-control:focus {
 
   .nav-item {
     flex-shrink: 0;
-    padding: 8px 14px;
+    padding: 7px 12px;
     font-size: 12px;
     border-radius: 20px;
+    gap: 6px;
+  }
+
+  /* Active nav pill on mobile — gradient emerald */
+  .nav-item.active {
+    background: linear-gradient(135deg, #10b981, #059669);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  }
+
+  .nav-item.active::before {
+    display: none;
   }
 
   .sidebar-bottom {
@@ -1000,126 +1038,381 @@ input.form-control:focus {
   }
 
   .app-main {
-    padding: 12px 8px;
+    padding: 0;
+    background: var(--bg-page);
   }
 
   .dashboard-wrapper {
-    padding: 16px 12px;
-    border-radius: 16px;
-    gap: 16px;
+    padding: 16px 14px;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    gap: 14px;
+    background: transparent;
   }
 }
 
-/* Mobile Screens (<= 768px) */
+/* ==========================================================================
+   MOBILE (≤ 768px) — PREMIUM APP EXPERIENCE
+   ========================================================================== */
 @media (max-width: 768px) {
+
+  /* ── APP SIDEBAR AS STICKY HEADER ── */
+  .app-sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    padding: 0 16px;
+    gap: 0;
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.25);
+  }
+
+  .sidebar-top {
+    gap: 0;
+  }
+
+  .sidebar-brand {
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .sidebar-brand-name {
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    font-weight: 800;
+  }
+
+  .sidebar-nav {
+    padding: 8px 0 10px;
+    gap: 4px;
+  }
+
+  .nav-item {
+    padding: 7px 11px;
+    font-size: 11.5px;
+    font-weight: 600;
+    gap: 5px;
+    border-radius: 20px;
+  }
+
+  /* ── HIDE DESKTOP HEADER (covered by sticky app bar) ── */
   .dashboard-top-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-
-  .btn-header-outline {
-    width: 100%;
-    justify-content: center;
-    padding: 10px 14px;
-    font-size: 12px;
-  }
-
-  /* Smooth Horizontal Scroll Stepper on Mobile */
-  .circle-stepper {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    overflow-x: auto;
-    white-space: nowrap;
-    padding: 10px 8px;
-    background: var(--bg-primary);
-    border-radius: 14px;
-    border: 1px solid var(--card-border);
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .circle-stepper::-webkit-scrollbar {
     display: none;
   }
 
-  .stepper-circle-item {
-    flex-shrink: 0;
-    gap: 6px;
-    padding: 2px 6px;
+  /* ── MAIN CONTENT AREA ── */
+  .app-main {
+    padding: 0;
   }
 
-  .circle-num {
-    width: 28px;
-    height: 28px;
-    font-size: 12px;
+  .dashboard-wrapper {
+    padding: 14px 14px 0;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    background: var(--bg-page);
+    gap: 12px;
   }
 
-  .circle-title {
-    font-size: 11px;
-    white-space: nowrap;
+  /* ── STATS STRIP → 2×2 PREMIUM GRID ── */
+  .stats-summary-strip {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    box-shadow: none;
   }
 
-  .stepper-divider {
-    width: 14px;
-    flex-shrink: 0;
+  .stat-divider {
+    display: none;
   }
 
-  .dashboard-card {
-    padding: 16px 12px;
-    border-radius: 16px;
-  }
-
-  .card-header-bar {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .template-bank-mobile-box {
-    display: flex !important;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px;
-    background: var(--bg-primary);
-    border: 1.5px dashed var(--primary-navy);
+  .stat-item {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
     border-radius: 14px;
-    margin-bottom: 14px;
+    padding: 13px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+    border-top-width: 3px;
+    border-top-style: solid;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
     cursor: pointer;
-    transition: all 0.2s ease;
   }
 
-  .template-bank-mobile-box:active {
-    transform: scale(0.98);
+  .stat-item:nth-child(1) { border-top-color: #10b981; }
+  .stat-item:nth-child(3) { border-top-color: #3b82f6; }
+  .stat-item:nth-child(5) { border-top-color: #f59e0b; }
+  .stat-item:nth-child(7) { border-top-color: #8b5cf6; }
+
+  .stat-item:active {
+    transform: scale(0.97);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  }
+
+  .stat-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+    border-radius: 8px;
     background: rgba(15, 23, 42, 0.05);
   }
 
-  /* Hide Desktop Card Grid on Mobile so user uses Bank Trigger */
+  [data-theme="dark"] .stat-icon {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .stat-number {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  /* ── STEPPER — COMPACT PROGRESS BAR ── */
+  .circle-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    gap: 0;
+  }
+
+  .stepper-circle-item {
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .circle-num {
+    width: 30px;
+    height: 30px;
+    font-size: 13px;
+    font-weight: 800;
+    border-width: 2px;
+    transition: all 0.3s ease;
+  }
+
+  .circle-title {
+    font-size: 9.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    display: none;
+  }
+
+  .stepper-circle-item.active .circle-title {
+    display: block;
+    color: var(--text-primary);
+  }
+
+  .stepper-circle-item.active .circle-num {
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.45);
+  }
+
+  .stepper-divider {
+    width: 20px;
+    height: 2px;
+    flex-shrink: 0;
+    flex: none;
+  }
+
+  /* ── WIZARD CARD ── */
+  .dashboard-card {
+    padding: 16px 14px;
+    border-radius: 18px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  #wizardMainCard {
+    min-height: unset;
+  }
+
+  .card-header-bar {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding-bottom: 12px;
+    margin-bottom: 14px !important;
+  }
+
+  #wizardHeaderTitle {
+    font-size: 14px !important;
+    line-height: 1.3;
+  }
+
+  /* ── CATEGORY TABS ── */
+  .category-tabs-container {
+    gap: 6px;
+    padding: 5px;
+    border-radius: 14px;
+    margin-bottom: 14px;
+  }
+
+  .category-tab {
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 10px;
+    gap: 6px;
+  }
+
+  /* ── SURAT CARDS — LANDSCAPE HORIZONTAL LAYOUT ── */
   .wizard-panel .surat-card-grid {
-    display: none !important;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
 
   .surat-select-card {
-    padding: 12px 14px;
+    flex-direction: row;
+    align-items: center;
+    padding: 13px 14px;
+    border-radius: 14px;
+    gap: 13px;
+    min-height: unset;
+  }
+
+  .surat-select-card .card-top {
+    flex-direction: column;
+    flex-shrink: 0;
+    gap: 0;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .surat-select-card .card-check-icon {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 15px;
+    opacity: 0;
+  }
+
+  .surat-select-card.active .card-check-icon {
+    opacity: 1;
+  }
+
+  .card-icon-box {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    font-size: 17px;
+  }
+
+  .surat-select-card > div:not(.card-top) {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .card-title-text {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 3px;
+    white-space: normal;
+  }
+
+  .card-desc-text {
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-bottom-link {
+    font-size: 11px;
+    margin-top: 6px;
+  }
+
+  .surat-select-card:active {
+    transform: scale(0.98);
+  }
+
+  /* Selected card active style */
+  .surat-select-card.active {
+    border-color: #10b981 !important;
+    background: #ecfdf5 !important;
+    box-shadow: 0 6px 20px -4px rgba(16, 185, 129, 0.25) !important;
+  }
+
+  [data-theme="dark"] .surat-select-card.active {
+    background: rgba(16, 185, 129, 0.1) !important;
+  }
+
+  /* Hide mobile trigger box (not needed since cards visible) */
+  .template-bank-mobile-box {
+    display: none !important;
+  }
+
+  /* ── STEP 2 — SEARCH PANEL ── */
+  .search-input-wrapper input {
+    padding-left: 44px;
+    min-height: 48px;
+    font-size: 15px;
     border-radius: 12px;
   }
 
-  /* Sticky Bottom Bar on Mobile */
+  .search-results {
+    border-radius: 14px;
+    margin-top: 6px;
+  }
+
+  .result-item {
+    padding: 13px 16px;
+  }
+
+  .selected-person-box {
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+
+  /* ── STEP 3 — FORM FIELDS ── */
+  .fields-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  select.form-control,
+  input.form-control {
+    min-height: 46px;
+    font-size: 15px;
+    border-radius: 12px;
+    padding: 11px 14px;
+  }
+
+  /* ── STICKY BOTTOM ACTION BAR ── */
   .dashboard-bottom-bar {
     position: sticky;
     bottom: 0;
-    background: var(--card-bg);
     z-index: 99;
-    padding: 12px;
-    margin: 12px -12px -16px -12px;
+    background: var(--card-bg);
+    padding: 12px 14px 20px;
+    margin: 8px -14px 0;
     border-top: 1px solid var(--card-border);
-    box-shadow: 0 -6px 20px rgba(0,0,0,0.1);
-    border-radius: 0 0 16px 16px;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.12);
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
   }
 
   .bottom-left-actions {
@@ -1130,42 +1423,74 @@ input.form-control:focus {
     width: 100%;
     display: flex;
     gap: 8px;
+    align-items: center;
   }
 
   .btn-bottom-cancel {
-    flex: 1;
-    padding: 12px 10px;
+    flex: 0 0 auto;
+    padding: 12px 16px;
     font-size: 13px;
-    min-height: 46px;
+    font-weight: 700;
+    min-height: 48px;
+    border-radius: 12px;
     justify-content: center;
-    text-align: center;
-    border-radius: 10px;
+    align-items: center;
+    display: flex;
   }
 
   .btn-bottom-navy {
-    flex: 2;
-    padding: 12px 12px;
-    font-size: 13px;
-    min-height: 46px;
-    justify-content: center;
-    text-align: center;
-    border-radius: 10px;
-  }
-
-  /* Mobile Input Touch Target Size */
-  select.form-control,
-  input.form-control {
-    min-height: 44px;
+    flex: 1;
+    padding: 13px 16px;
     font-size: 14px;
+    font-weight: 800;
+    min-height: 48px;
+    justify-content: center;
+    align-items: center;
+    display: flex;
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.45);
+    letter-spacing: -0.01em;
   }
 
+  .btn-bottom-navy:hover,
+  .btn-bottom-navy:active {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(16, 185, 129, 0.6);
+  }
+
+  /* ── MODALS — BOTTOM SHEET STYLE ── */
   .modal-overlay {
-    padding: 8px;
+    padding: 0;
+    align-items: flex-end;
   }
 
   .modal-content {
-    max-height: 96vh;
-    border-radius: 16px;
+    max-height: 92vh;
+    border-radius: 24px 24px 0 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .modal-header {
+    padding: 16px 20px;
+    /* Drag indicator */
+    position: relative;
+  }
+
+  .modal-header::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    background: var(--card-border);
+    border-radius: 2px;
+  }
+
+  .modal-body {
+    padding: 16px 16px 0;
   }
 
   .modal-paper {
@@ -1175,30 +1500,61 @@ input.form-control:focus {
   .modal-footer {
     flex-direction: column-reverse;
     gap: 8px;
+    padding: 14px 16px 24px;
   }
 
   .modal-footer button {
     width: 100%;
     justify-content: center;
+    min-height: 46px;
   }
 }
 
-/* Template Bank Mobile Trigger Box (Strictly Hidden on Desktop > 768px) */
+/* Template Bank Mobile Trigger Box (Hidden — cards visible directly) */
 .template-bank-mobile-box {
   display: none !important;
 }
 
-/* Extra Small Screens (<= 480px) */
+/* ==========================================================================
+   EXTRA SMALL (≤ 480px)
+   ========================================================================== */
 @media (max-width: 480px) {
+  .sidebar-brand-name {
+    font-size: 14px;
+  }
+
+  .nav-item {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
   .category-tabs-container {
     flex-direction: row;
   }
-  
+
   .category-tab {
     flex: 1;
     text-align: center;
-    padding: 10px 8px;
+    padding: 9px 6px;
     font-size: 12px;
+    gap: 4px;
+  }
+
+  .stat-number {
+    font-size: 20px;
+  }
+
+  .card-title-text {
+    font-size: 12.5px;
+  }
+
+  .btn-bottom-navy {
+    font-size: 13px;
+  }
+
+  /* Stats labels hidden on very small screens to save space */
+  .stat-label {
+    font-size: 10.5px;
   }
 }
 
