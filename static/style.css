@@ -932,12 +932,6 @@ input.form-control:focus {
     gap: 8px;
   }
 
-/* Template Bank Mobile Trigger Box (Strictly Hidden on Desktop > 768px) */
-.template-bank-mobile-box {
-  display: none !important;
-}
-
-@media (max-width: 768px) {
   .template-bank-mobile-box {
     display: flex !important;
     align-items: center;
@@ -1041,6 +1035,11 @@ input.form-control:focus {
     width: 100%;
     justify-content: center;
   }
+}
+
+/* Template Bank Mobile Trigger Box (Strictly Hidden on Desktop > 768px) */
+.template-bank-mobile-box {
+  display: none !important;
 }
 
 /* Extra Small Screens (<= 480px) */
