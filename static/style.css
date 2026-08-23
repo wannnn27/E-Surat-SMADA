@@ -100,8 +100,6 @@ body {
   background-color: var(--bg-page);
   color: var(--text-primary);
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
 /* Executive Stats Summary Strip */
@@ -168,8 +166,8 @@ body {
 .app-container {
   display: flex;
   width: 100%;
-  min-height: 100vh;
-  align-items: stretch;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* Left Sidebar Navigation (Matching Reference Image) */
@@ -316,6 +314,7 @@ body {
   padding: 28px 36px;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
 .dashboard-wrapper {
@@ -968,6 +967,9 @@ input.form-control:focus {
    ========================================================================== */
 @media (max-width: 1024px) {
   .app-container {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
     flex-direction: column;
   }
 
