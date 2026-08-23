@@ -67,6 +67,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         AUTH_PASSWORD=os.getenv("ESURAT_PASSWORD", ""),
         AUTH_PASSWORD_HASH=os.getenv("ESURAT_PASSWORD_HASH", ""),
         AUTH_ENABLED=None,
+        ALLOW_PUBLIC_UNAUTHENTICATED=_env_bool("ESURAT_ALLOW_PUBLIC", bool(os.getenv("VERCEL"))),
         BIND_HOST=os.getenv("ESURAT_HOST", "127.0.0.1"),
         BIND_PORT=int(os.getenv("ESURAT_PORT", "5000")),
         SERVER_THREADS=int(os.getenv("ESURAT_THREADS", "4")),
@@ -93,7 +94,11 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     if not app.config.get("SECRET_KEY"):
         # Aman untuk satu proses local-only; production/auth wajib memberi secret stabil.
         app.config["SECRET_KEY"] = secrets.token_hex(32)
-    if not app.config["AUTH_ENABLED"] and not _is_loopback_bind(str(app.config["BIND_HOST"])):
+    if (
+        not app.config["AUTH_ENABLED"]
+        and not app.config.get("ALLOW_PUBLIC_UNAUTHENTICATED")
+        and not _is_loopback_bind(str(app.config["BIND_HOST"]))
+    ):
         raise DataValidationError("Aplikasi tanpa autentikasi hanya boleh bind ke loopback")
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,20}", str(app.config["NUMBER_SUFFIX"])):
         raise DataValidationError("ESURAT_NUMBER_SUFFIX harus 1-20 karakter huruf/angka/_/-")
@@ -124,7 +129,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         endpoint = request.endpoint or ""
         public_when_authenticated = {"healthz", "api_csrf", "login", "static"}
         if not app.config["AUTH_ENABLED"]:
-            if not _is_loopback_address(request.remote_addr):
+            if not app.config.get("ALLOW_PUBLIC_UNAUTHENTICATED") and not _is_loopback_address(request.remote_addr):
                 return _json_error("Akses tanpa autentikasi hanya diizinkan dari komputer lokal", 403)
         elif endpoint not in public_when_authenticated and not session.get("authenticated"):
             if request.method == "GET" and not request.path.startswith("/api/"):
