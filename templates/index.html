@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>E-Surat SMADA - Elektronik Persuratan SMAN 2 Wonosari</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -23,28 +24,36 @@
             <button type="button" class="reset-link-btn mobile-reset-btn" id="mobileResetBtn" title="Reset Form" style="color: #cbd5e1; font-size: 13px; padding: 4px 6px; display: flex; align-items: center; gap: 6px;">
               <i class="fa-solid fa-arrow-rotate-left"></i> Reset
             </button>
+            {% if auth_enabled %}
+              <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="reset-link-btn mobile-reset-btn" title="Keluar dari akun {{ username }}">
+                  <i class="fa-solid fa-right-from-bracket"></i> Keluar
+                </button>
+              </form>
+            {% endif %}
           </div>
         </div>
 
-        <nav class="sidebar-nav">
-          <a class="nav-item active">
+        <nav class="sidebar-nav" aria-label="Navigasi utama">
+          <button type="button" class="nav-item active" data-nav-action="home" aria-current="page">
             <i class="fa-solid fa-file-invoice"></i> Buat Surat
-          </a>
-          <a class="nav-item">
+          </button>
+          <button type="button" class="nav-item" data-nav-action="guru">
             <i class="fa-solid fa-users"></i> Guru & Staff
-          </a>
-          <a class="nav-item">
+          </button>
+          <button type="button" class="nav-item" data-nav-action="murid">
             <i class="fa-solid fa-user-graduate"></i> Siswa / Murid
-          </a>
-          <a class="nav-item">
+          </button>
+          <button type="button" class="nav-item" data-nav-action="templates">
             <i class="fa-solid fa-file-word"></i> Template (.docx)
-          </a>
-          <a class="nav-item">
+          </button>
+          <button type="button" class="nav-item" data-nav-action="riwayat">
             <i class="fa-solid fa-clock-rotate-left"></i> Riwayat Surat
-          </a>
-          <a class="nav-item">
+          </button>
+          <button type="button" class="nav-item" data-nav-action="arsip">
             <i class="fa-solid fa-bookmark"></i> Kode Arsip
-          </a>
+          </button>
         </nav>
       </div>
 
@@ -52,6 +61,14 @@
         <button type="button" class="reset-link-btn" id="sidebarResetBtn">
           <i class="fa-solid fa-arrow-rotate-left"></i> Reset Form
         </button>
+        {% if auth_enabled %}
+          <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="reset-link-btn" title="Keluar dari akun {{ username }}">
+              <i class="fa-solid fa-right-from-bracket"></i> Keluar
+            </button>
+          </form>
+        {% endif %}
       </div>
     </aside>
 
@@ -68,73 +85,75 @@
               <div style="font-size: 13px; color: var(--text-secondary);">Sistem Informasi Persuratan Resmi SMAN 2 Wonosari (Izin, Cuti, Sakit, Penugasan, Dispensasi)</div>
             </div>
           </div>
-          <button type="button" class="btn-header-outline" onclick="alert('Panduan: 1. Pilih jenis surat. 2. Cari nama guru/murid. 3. Isi tanggal & keperluan. 4. Klik Lanjutkan ke Pratinjau!')">
+          <button type="button" class="btn-header-outline" id="helpBtn">
             <i class="fa-solid fa-circle-question"></i> Bantuan & Panduan
           </button>
         </div>
 
         <!-- Executive Stats Summary Strip -->
         <div class="stats-summary-strip">
-          <div class="stat-item" onclick="openGuruDirectory();">
-            <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
-            <div>
-              <span class="stat-number">50</span>
+          <button type="button" class="stat-item" data-stat-action="guru" aria-label="Buka direktori Guru dan Staff">
+            <span class="stat-icon"><i class="fa-solid fa-users"></i></span>
+            <span>
+              <span class="stat-number" id="statGuruCount">-</span>
               <span class="stat-label">Guru & Staff</span>
-            </div>
-          </div>
+            </span>
+          </button>
           <div class="stat-divider"></div>
-          <div class="stat-item" onclick="openMuridDirectory();">
-            <div class="stat-icon"><i class="fa-solid fa-user-graduate"></i></div>
-            <div>
-              <span class="stat-number">750</span>
+          <button type="button" class="stat-item" data-stat-action="murid" aria-label="Buka direktori siswa aktif">
+            <span class="stat-icon"><i class="fa-solid fa-user-graduate"></i></span>
+            <span>
+              <span class="stat-number" id="statMuridCount">-</span>
               <span class="stat-label">Siswa Aktif</span>
-            </div>
-          </div>
+            </span>
+          </button>
           <div class="stat-divider"></div>
-          <div class="stat-item" onclick="document.getElementById('modalTemplates').style.display='flex';">
-            <div class="stat-icon"><i class="fa-solid fa-file-word"></i></div>
-            <div>
-              <span class="stat-number">20</span>
+          <button type="button" class="stat-item" data-stat-action="templates" aria-label="Buka bank template surat">
+            <span class="stat-icon"><i class="fa-solid fa-file-word"></i></span>
+            <span>
+              <span class="stat-number" id="statTemplateCount">-</span>
               <span class="stat-label">Template (.docx)</span>
-            </div>
-          </div>
+            </span>
+          </button>
           <div class="stat-divider"></div>
-          <div class="stat-item" onclick="openKodeArsipDirectory();">
-            <div class="stat-icon"><i class="fa-solid fa-bookmark"></i></div>
-            <div>
-              <span class="stat-number">146</span>
+          <button type="button" class="stat-item" data-stat-action="arsip" aria-label="Buka direktori kode klasifikasi arsip">
+            <span class="stat-icon"><i class="fa-solid fa-bookmark"></i></span>
+            <span>
+              <span class="stat-number" id="statArsipCount">-</span>
               <span class="stat-label">Kode Klasifikasi</span>
-            </div>
-          </div>
+            </span>
+          </button>
         </div>
 
         <!-- Circle Numbered Stepper (Matching Reference Image) -->
-        <div class="circle-stepper">
-          <div class="stepper-circle-item active" id="stepIndicator1">
-            <div class="circle-num">1</div>
-            <div class="circle-title">Jenis Surat</div>
-          </div>
-          <div class="stepper-divider"></div>
-          <div class="stepper-circle-item" id="stepIndicator2">
-            <div class="circle-num">2</div>
-            <div class="circle-title">Cari Personel</div>
-          </div>
-          <div class="stepper-divider"></div>
-          <div class="stepper-circle-item" id="stepIndicator3">
-            <div class="circle-num">3</div>
-            <div class="circle-title">Isi Detail</div>
-          </div>
-          <div class="stepper-divider"></div>
-          <div class="stepper-circle-item" id="stepIndicator4">
-            <div class="circle-num">4</div>
-            <div class="circle-title">Pratinjau & Unduh</div>
-          </div>
+        <div class="circle-stepper" aria-label="Tahapan pembuatan surat">
+          <button type="button" class="stepper-circle-item active" id="stepIndicator1" data-step="1" aria-current="step" aria-label="Langkah 1, Jenis Surat">
+            <span class="circle-num">1</span>
+            <span class="circle-title">Jenis Surat</span>
+          </button>
+          <div class="stepper-divider" aria-hidden="true"></div>
+          <button type="button" class="stepper-circle-item" id="stepIndicator2" data-step="2" aria-label="Langkah 2, Cari Personel" disabled>
+            <span class="circle-num">2</span>
+            <span class="circle-title">Cari Personel</span>
+          </button>
+          <div class="stepper-divider" aria-hidden="true"></div>
+          <button type="button" class="stepper-circle-item" id="stepIndicator3" data-step="3" aria-label="Langkah 3, Isi Detail" disabled>
+            <span class="circle-num">3</span>
+            <span class="circle-title">Isi Detail</span>
+          </button>
+          <div class="stepper-divider" aria-hidden="true"></div>
+          <button type="button" class="stepper-circle-item" id="stepIndicator4" data-step="4" aria-label="Langkah 4, Ringkasan Data dan Unduh" disabled>
+            <span class="circle-num">4</span>
+            <span class="circle-title">Ringkasan & Unduh</span>
+          </button>
         </div>
 
         <!-- Main Grid Split Content -->
         <form id="suratForm" action="/generate" method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" id="jenisSurat" name="jenis_surat" required>
-          <input type="hidden" id="id_value" name="id_value">
+          <input type="hidden" id="id_value" name="id_value" required>
+          <input type="hidden" id="requestId" name="request_id">
 
           <!-- SINGLE ACTIVE WIZARD CONTAINER CARD (ZERO SCROLL) -->
           <div class="dashboard-card" id="wizardMainCard" style="min-height: 420px; transition: all 0.25s ease;">
@@ -148,101 +167,119 @@
               <span class="header-pill-badge" id="wizardHeaderBadge">Kategori: Guru / Staff</span>
             </div>
 
+            <div id="wizardStatus" class="wizard-status" role="status" aria-live="polite" hidden></div>
+
             <!-- PANEL STEP 1: PILIH JENIS SURAT -->
             <div id="stepPanel1" class="wizard-panel">
               <!-- Mobile Template Bank Selector Trigger Box (Shows on Mobile Screens <= 768px) -->
-              <div class="template-bank-mobile-box" id="openMobileTemplateModal">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                  <div class="card-icon-box" style="width: 42px; height: 42px; background: rgba(15, 23, 42, 0.06); color: var(--primary-navy); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">
+              <button type="button" class="template-bank-mobile-box" id="openMobileTemplateModal">
+                <span style="display: flex; align-items: center; gap: 12px;">
+                  <span class="card-icon-box" style="width: 42px; height: 42px; background: rgba(15, 23, 42, 0.06); color: var(--primary-navy); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">
                     <i class="fa-solid fa-folder-open"></i>
-                  </div>
-                  <div>
+                  </span>
+                  <span>
                     <strong style="font-size: 14px; color: var(--text-primary); display: block;" id="mobileSelectedSuratTitle">Bank Template Surat SMADA</strong>
-                    <small style="font-size: 12px; color: var(--text-secondary);" id="mobileSelectedSuratSub">Ketuk untuk memilih dari 20 template resmi</small>
-                  </div>
-                </div>
-                <button type="button" class="btn-bottom-cancel" style="padding: 8px 14px; font-size: 12px; font-weight: 700; white-space: nowrap;">
+                    <small style="font-size: 12px; color: var(--text-secondary);" id="mobileSelectedSuratSub">Ketuk untuk memilih template resmi</small>
+                  </span>
+                </span>
+                <span class="btn-bottom-cancel" style="padding: 8px 14px; font-size: 12px; font-weight: 700; white-space: nowrap;">
                   Buka Bank <i class="fa-solid fa-chevron-right" style="margin-left: 4px;"></i>
-                </button>
-              </div>
+                </span>
+              </button>
 
               <!-- Category Tabs Switcher (Desktop & Mobile Tablet) -->
-              <div class="category-tabs-container" style="margin-bottom: 16px;">
-                <button type="button" class="category-tab active" data-kategori="guru">
+              <div class="category-tabs-container" style="margin-bottom: 16px;" role="tablist" aria-label="Kategori personel">
+                <button type="button" class="category-tab active" id="tabGuru" data-kategori="guru" role="tab" aria-selected="true" aria-controls="gridGuru">
                   <i class="fa-solid fa-chalkboard-user"></i> Guru & Staff
                 </button>
-                <button type="button" class="category-tab" data-kategori="murid">
+                <button type="button" class="category-tab" id="tabMurid" data-kategori="murid" role="tab" aria-selected="false" aria-controls="gridMurid">
                   <i class="fa-solid fa-user-graduate"></i> Siswa / Murid
                 </button>
               </div>
 
               <!-- Cards Grid Guru -->
-              <div class="surat-card-grid" id="gridGuru">
+              <div class="surat-card-grid" id="gridGuru" role="tabpanel" aria-labelledby="tabGuru">
                 {% for key, info in jenis_surat.items() if info.kategori == 'guru' %}
-                <div class="surat-select-card" data-key="{{ key }}" data-kategori="guru">
-                  <div class="card-top">
-                    <div class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></div>
+                <button type="button" class="surat-select-card" data-key="{{ key }}" data-kategori="guru" aria-pressed="false">
+                  <span class="card-top">
+                    <span class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></span>
                     <i class="fa-solid fa-circle-check card-check-icon"></i>
-                  </div>
-                  <div>
-                    <div class="card-title-text">{{ info.label }}</div>
-                    <div class="card-desc-text">{{ info.deskripsi or 'Template resmi SMADA.' }}</div>
-                  </div>
-                  <div class="card-bottom-link">
+                  </span>
+                  <span class="card-copy">
+                    <span class="card-title-text">{{ info.label }}</span>
+                    <span class="card-desc-text">{{ info.deskripsi or 'Template resmi SMADA.' }}</span>
+                  </span>
+                  <span class="card-bottom-link">
                     Pilih Template <i class="fa-solid fa-arrow-right" style="margin-left: 4px; font-size: 11px;"></i>
-                  </div>
-                </div>
+                  </span>
+                </button>
                 {% endfor %}
               </div>
 
               <!-- Cards Grid Murid -->
-              <div class="surat-card-grid" id="gridMurid" style="display: none;">
+              <div class="surat-card-grid" id="gridMurid" role="tabpanel" aria-labelledby="tabMurid" hidden>
                 {% for key, info in jenis_surat.items() if info.kategori == 'murid' %}
-                <div class="surat-select-card" data-key="{{ key }}" data-kategori="murid">
-                  <div class="card-top">
-                    <div class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></div>
+                <button type="button" class="surat-select-card" data-key="{{ key }}" data-kategori="murid" aria-pressed="false">
+                  <span class="card-top">
+                    <span class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></span>
                     <i class="fa-solid fa-circle-check card-check-icon"></i>
-                  </div>
-                  <div>
-                    <div class="card-title-text">{{ info.label }}</div>
-                    <div class="card-desc-text">{{ info.deskripsi or 'Template izin/dispensasi murid.' }}</div>
-                  </div>
-                  <div class="card-bottom-link">
+                  </span>
+                  <span class="card-copy">
+                    <span class="card-title-text">{{ info.label }}</span>
+                    <span class="card-desc-text">{{ info.deskripsi or 'Template izin/dispensasi murid.' }}</span>
+                  </span>
+                  <span class="card-bottom-link">
                     Pilih Template <i class="fa-solid fa-arrow-right" style="margin-left: 4px; font-size: 11px;"></i>
-                  </div>
-                </div>
+                  </span>
+                </button>
                 {% endfor %}
               </div>
             </div>
 
             <!-- PANEL STEP 2: CARI PERSONEL -->
-            <div id="stepPanel2" class="wizard-panel" style="display: none;">
-              <div style="background: var(--bg-primary); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+            <div id="stepPanel2" class="wizard-panel" hidden>
+              <div style="background: var(--bg-page); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
                 <span style="font-size: 13px; color: var(--text-secondary);"><i class="fa-solid fa-file-signature"></i> Surat Terpilih: <strong id="step2SelectedSurat" style="color: var(--primary-navy);">-</strong></span>
-                <button type="button" class="reset-link-btn" onclick="setWizardStep(1);" style="font-size: 12px;"><i class="fa-solid fa-pen"></i> Ganti Surat</button>
+                <button type="button" class="reset-link-btn inline-edit-btn" id="changeTemplateBtn" style="font-size: 12px;"><i class="fa-solid fa-pen"></i> Ganti Surat</button>
               </div>
 
               <div class="search-input-wrapper" style="margin-bottom: 16px;">
                 <i class="fa-solid fa-search"></i>
+                <label class="sr-only" for="searchBox">Cari nama atau nomor identitas personel</label>
                 <input type="text" id="searchBox" class="form-control" autocomplete="off"
-                       placeholder="Ketik minimal 2 huruf nama, NIP, atau NIS...">
+                       maxlength="100"
+                       placeholder="Ketik minimal 2 huruf nama, NIP, atau NIS..."
+                       role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="searchResults" aria-describedby="searchStatus">
               </div>
-              <div id="searchResults" class="search-results"></div>
-              <div id="selectedPerson" class="selected-person-box" style="display:none; margin-top: 14px;"></div>
+              <div id="searchStatus" class="inline-status" role="status" aria-live="polite">Ketik minimal 2 karakter, lalu pilih data dari hasil resmi.</div>
+              <div id="searchResults" class="search-results" role="listbox" aria-label="Hasil pencarian personel" hidden></div>
+              <div id="selectedPerson" class="selected-person-box" hidden></div>
             </div>
 
             <!-- PANEL STEP 3: ISI DETAIL SURAT -->
-            <div id="stepPanel3" class="wizard-panel" style="display: none;">
+            <div id="stepPanel3" class="wizard-panel" hidden>
               <!-- Summary Pill Bar -->
-              <div style="background: var(--bg-primary); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;">
+              <div style="background: var(--bg-page); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;">
                 <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
                   <span style="font-size: 13px; color: var(--text-secondary);"><i class="fa-solid fa-file-signature"></i> Surat: <strong id="step3SelectedSurat" style="color: var(--primary-navy);">-</strong></span>
                   <span style="font-size: 13px; color: var(--text-secondary);"><i class="fa-solid fa-user-check"></i> Pemohon: <strong id="step3SelectedPerson" style="color: var(--primary-navy);">-</strong></span>
                 </div>
-                <button type="button" class="reset-link-btn" onclick="setWizardStep(2);" style="font-size: 12px;"><i class="fa-solid fa-user-pen"></i> Ganti Personel</button>
+                <button type="button" class="reset-link-btn inline-edit-btn" id="changePersonBtn" style="font-size: 12px;"><i class="fa-solid fa-user-pen"></i> Ganti Personel</button>
               </div>
 
+              <div id="fieldsStatus" class="inline-status" role="status" aria-live="polite" hidden></div>
               <div id="dynamicFields" class="fields-grid"></div>
+            </div>
+
+            <div id="stepPanel4" class="wizard-panel" hidden>
+              <div class="step4-ready">
+                <div class="step4-ready-icon" aria-hidden="true"><i class="fa-solid fa-clipboard-check"></i></div>
+                <div>
+                  <h4>Ringkasan data siap diperiksa</h4>
+                  <p>Ringkasan ini memeriksa data yang akan dimasukkan ke template. Dokumen final tetap berupa file DOCX.</p>
+                </div>
+                <button type="button" class="btn-bottom-navy" id="reopenSummaryBtn">Buka Ringkasan</button>
+              </div>
             </div>
 
           </div>
@@ -270,16 +307,18 @@
   </div>
 
   <!-- MODAL DATA GURU (DIRECTORY) -->
-  <div id="modalGuru" class="modal-overlay" style="display:none;">
-    <div class="modal-content" style="max-width: 820px;">
+  <div id="modalGuru" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalGuruTitle" hidden>
+    <div class="modal-content" style="max-width: 820px;" tabindex="-1">
       <div class="modal-header">
-        <h3 style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-chalkboard-user"></i> Direktori Data Guru & Staff</h3>
-        <button type="button" class="modal-close-btn" id="closeGuruModalBtn" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+        <h3 id="modalGuruTitle" style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-chalkboard-user"></i> Direktori Data Guru & Staff</h3>
+        <button type="button" class="modal-close-btn" id="closeGuruModalBtn" aria-label="Tutup direktori Guru dan Staff">&times;</button>
       </div>
       <div class="modal-body">
         <div style="margin-bottom: 16px;">
-          <input type="text" id="searchGuruModalInput" class="form-control" placeholder="Cari nama, NIP, atau jabatan guru/staff...">
+          <label class="sr-only" for="searchGuruModalInput">Cari data Guru dan Staff</label>
+          <input type="text" id="searchGuruModalInput" class="form-control" autocomplete="off" maxlength="100" placeholder="Cari nama, NIP, atau jabatan guru/staff..." aria-describedby="guruModalStatus">
         </div>
+        <div id="guruModalStatus" class="inline-status" role="status" aria-live="polite"></div>
         <div id="guruModalList" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; max-height: 440px; overflow-y: auto;">
           <!-- Populated by JS -->
         </div>
@@ -288,16 +327,18 @@
   </div>
 
   <!-- MODAL DATA MURID (DIRECTORY) -->
-  <div id="modalMurid" class="modal-overlay" style="display:none;">
-    <div class="modal-content" style="max-width: 820px;">
+  <div id="modalMurid" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalMuridTitle" hidden>
+    <div class="modal-content" style="max-width: 820px;" tabindex="-1">
       <div class="modal-header">
-        <h3 style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-user-graduate"></i> Direktori Data Siswa & Murid</h3>
-        <button type="button" class="modal-close-btn" id="closeMuridModalBtn" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+        <h3 id="modalMuridTitle" style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-user-graduate"></i> Direktori Data Siswa & Murid</h3>
+        <button type="button" class="modal-close-btn" id="closeMuridModalBtn" aria-label="Tutup direktori siswa">&times;</button>
       </div>
       <div class="modal-body">
         <div style="margin-bottom: 16px;">
-          <input type="text" id="searchMuridModalInput" class="form-control" placeholder="Cari nama, NIS, NISN, atau kelas murid...">
+          <label class="sr-only" for="searchMuridModalInput">Cari data siswa</label>
+          <input type="text" id="searchMuridModalInput" class="form-control" autocomplete="off" maxlength="100" placeholder="Cari nama, NIS, NISN, atau kelas murid..." aria-describedby="muridModalStatus">
         </div>
+        <div id="muridModalStatus" class="inline-status" role="status" aria-live="polite"></div>
         <div id="muridModalList" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; max-height: 440px; overflow-y: auto;">
           <!-- Populated by JS -->
         </div>
@@ -306,26 +347,26 @@
   </div>
 
   <!-- MODAL TEMPLATE GALLERY -->
-  <div id="modalTemplates" class="modal-overlay" style="display:none;">
-    <div class="modal-content" style="max-width: 820px;">
+  <div id="modalTemplates" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTemplatesTitle" hidden>
+    <div class="modal-content" style="max-width: 820px;" tabindex="-1">
       <div class="modal-header">
-        <h3 style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-file-word"></i> Galeri Template Dokumen (.docx Resmi SMADA)</h3>
-        <button type="button" class="modal-close-btn" id="closeTemplatesModalBtn" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+        <h3 id="modalTemplatesTitle" style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-file-word"></i> Galeri Template Dokumen (.docx Resmi SMADA)</h3>
+        <button type="button" class="modal-close-btn" id="closeTemplatesModalBtn" aria-label="Tutup galeri template">&times;</button>
       </div>
       <div class="modal-body">
         <div id="templatesModalGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
           {% for key, info in jenis_surat.items() %}
-          <div class="surat-select-card" data-key="{{ key }}" onclick="selectJenisSuratFromModal('{{ key }}')">
-            <div class="card-top">
-              <div class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></div>
+          <button type="button" class="surat-select-card template-modal-card" data-key="{{ key }}" aria-pressed="false">
+            <span class="card-top">
+              <span class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></span>
               <span class="header-pill-badge">{{ info.kategori | upper }}</span>
-            </div>
-            <div>
-              <div class="card-title-text">{{ info.label }}</div>
-              <div class="card-desc-text">{{ info.deskripsi or 'Template resmi SMADA.' }}</div>
-            </div>
-            <button type="button" class="btn-bottom-navy" style="padding: 6px 12px; font-size: 11px; margin-top: 6px;">Pilih Template</button>
-          </div>
+            </span>
+            <span class="card-copy">
+              <span class="card-title-text">{{ info.label }}</span>
+              <span class="card-desc-text">{{ info.deskripsi or 'Template resmi SMADA.' }}</span>
+            </span>
+            <span class="card-action-label card-action-pill" style="padding: 6px 12px; font-size: 11px; margin-top: 6px;">Pilih Template</span>
+          </button>
           {% endfor %}
         </div>
       </div>
@@ -333,16 +374,18 @@
   </div>
 
   <!-- MODAL KODE KLASIFIKASI ARSIP -->
-  <div id="modalKodeArsip" class="modal-overlay" style="display:none;">
-    <div class="modal-content" style="max-width: 820px;">
+  <div id="modalKodeArsip" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalKodeArsipTitle" hidden>
+    <div class="modal-content" style="max-width: 820px;" tabindex="-1">
       <div class="modal-header">
-        <h3 style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-bookmark"></i> Kode Klasifikasi Arsip Surat SMAN 2 Wonosari 2025 (146 Kode)</h3>
-        <button type="button" class="modal-close-btn" id="closeKodeArsipModalBtn" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+        <h3 id="modalKodeArsipTitle" style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-bookmark"></i> Kode Klasifikasi Arsip Surat SMAN 2 Wonosari</h3>
+        <button type="button" class="modal-close-btn" id="closeKodeArsipModalBtn" aria-label="Tutup direktori kode arsip">&times;</button>
       </div>
       <div class="modal-body">
         <div style="margin-bottom: 16px;">
-          <input type="text" id="searchKodeArsipInput" class="form-control" placeholder="Cari kode (misal 00.1.2) atau keterangan klasifikasi arsip...">
+          <label class="sr-only" for="searchKodeArsipInput">Cari kode klasifikasi arsip</label>
+          <input type="text" id="searchKodeArsipInput" class="form-control" autocomplete="off" maxlength="120" placeholder="Cari kode (misal 00.1.2) atau keterangan klasifikasi arsip..." aria-describedby="kodeArsipStatus">
         </div>
+        <div id="kodeArsipStatus" class="inline-status" role="status" aria-live="polite"></div>
         <div id="kodeArsipList" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; max-height: 440px; overflow-y: auto;">
           <!-- Populated by JS -->
         </div>
@@ -351,13 +394,14 @@
   </div>
 
   <!-- MODAL RIWAYAT SURAT LOG -->
-  <div id="modalRiwayat" class="modal-overlay" style="display:none;">
-    <div class="modal-content" style="max-width: 860px;">
+  <div id="modalRiwayat" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalRiwayatTitle" hidden>
+    <div class="modal-content" style="max-width: 860px;" tabindex="-1">
       <div class="modal-header">
-        <h3 style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-clock-rotate-left"></i> Riwayat Log Surat Terbuat (Database Tata Usaha)</h3>
-        <button type="button" class="modal-close-btn" id="closeRiwayatModalBtn" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+        <h3 id="modalRiwayatTitle" style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-clock-rotate-left"></i> Riwayat Log Surat Terbuat (Database Tata Usaha)</h3>
+        <button type="button" class="modal-close-btn" id="closeRiwayatModalBtn" aria-label="Tutup riwayat surat">&times;</button>
       </div>
       <div class="modal-body">
+        <div id="riwayatModalStatus" class="inline-status" role="status" aria-live="polite"></div>
         <div id="riwayatModalList" style="display: flex; flex-direction: column; gap: 10px; max-height: 460px; overflow-y: auto;">
           <!-- Populated by JS -->
         </div>
@@ -365,41 +409,25 @@
     </div>
   </div>
 
-  <!-- Fullscreen Modal Overlay Pratinjau Surat -->
-  <div id="previewModal" class="modal-overlay" style="display:none;">
-    <div class="modal-content">
+  <!-- Ringkasan data sebelum dokumen dibuat -->
+  <div id="previewModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="summaryModalTitle" aria-describedby="summaryModalDescription" hidden>
+    <div class="modal-content" tabindex="-1">
       <div class="modal-header">
-        <h3 style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-file-invoice"></i> Pratinjau Surat Resmi SMAN 2 Wonosari</h3>
-        <button type="button" class="modal-close-btn" id="modalCloseBtn" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+        <h3 id="summaryModalTitle" style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-clipboard-check"></i> Ringkasan Data Surat</h3>
+        <button type="button" class="modal-close-btn" id="modalCloseBtn" aria-label="Tutup ringkasan dan kembali mengedit">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="modal-paper">
-          <div class="modal-paper-kop" style="text-align: center; border-bottom: 3px double #000000; padding-bottom: 12px; margin-bottom: 20px;">
-            <img src="{{ url_for('static', filename='smada.png') }}" alt="Logo SMADA" style="width: 56px; height: 56px; object-fit: contain;">
-            <div style="font-size: 12px; font-weight: bold; letter-spacing: 0.04em;">PEMERINTAH DAERAH DIY - DINAS PENDIDIKAN</div>
-            <div style="font-size: 18px; font-weight: bold;">SMA NEGERI 2 WONOSARI</div>
-            <div style="font-size: 11px; color: #475569;">Jl. Ki Ageng Giring 3, Kepek, Wonosari, Gunungkidul, Yogyakarta 55813</div>
-          </div>
-
-          <div id="modalDocTitle" style="text-align: center; font-size: 16px; font-weight: bold; text-decoration: underline;">SURAT PERMOHONAN</div>
-          <div id="modalDocNo" style="text-align: center; font-size: 13px; margin-bottom: 24px;">Nomor: -</div>
-
-          <div id="modalPaperBody">
-            <!-- Dynamically populated -->
-          </div>
-
-          <div style="margin-top: 32px; text-align: right;">
-            <div id="modalDocDate">Wonosari, -</div>
-            <div id="modalDocRole" style="margin-top: 4px; font-weight: bold;">Hormat kami,</div>
-            <div style="height: 60px;"></div>
-            <div id="modalDocName" style="font-weight: bold; text-decoration: underline;">-</div>
-            <div id="modalDocNip">NIP. -</div>
-          </div>
+        <p id="summaryModalDescription" class="summary-note">
+          Ringkasan ini menampilkan data yang akan dimasukkan ke template, bukan tampilan halaman DOCX final. Periksa nama, nomor identitas, tanggal, dan keperluan sebelum mengunduh.
+        </p>
+        <div class="modal-paper summary-card">
+          <dl id="summaryList" class="summary-list"></dl>
         </div>
+        <div id="downloadStatus" class="wizard-status" role="status" aria-live="polite" hidden></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-bottom-cancel" id="modalEditBtn">
-          <i class="fa-solid fa-pen"></i> Edit Form
+          <i class="fa-solid fa-pen"></i> Kembali Edit
         </button>
         <button type="button" class="btn-bottom-navy" id="modalDownloadBtn">
           <i class="fa-solid fa-download"></i> Unduh File Dokumen (.docx)
@@ -408,9 +436,31 @@
     </div>
   </div>
 
+  <!-- MODAL BANTUAN -->
+  <div id="modalHelp" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalHelpTitle" hidden>
+    <div class="modal-content modal-content-compact" tabindex="-1">
+      <div class="modal-header">
+        <h3 id="modalHelpTitle"><i class="fa-solid fa-circle-question"></i> Panduan Singkat</h3>
+        <button type="button" class="modal-close-btn" id="closeHelpModalBtn" aria-label="Tutup panduan">&times;</button>
+      </div>
+      <div class="modal-body help-content">
+        <ol>
+          <li>Pilih kategori dan template surat yang sesuai.</li>
+          <li>Cari personel, lalu pilih hasil resmi dari database.</li>
+          <li>Isi detail wajib dan periksa rentang tanggal.</li>
+          <li>Periksa Ringkasan Data, lalu unduh dokumen DOCX.</li>
+        </ol>
+        <p>Nomor surat dapat dikosongkan. Sistem akan mengalokasikan nomor resmi saat dokumen dibuat.</p>
+      </div>
+    </div>
+  </div>
+
   <!-- JSON Data Injection -->
   <script id="jenisSuratDataJson" type="application/json">
     {{ jenis_surat | tojson | safe }}
+  </script>
+  <script id="statsDataJson" type="application/json">
+    {{ stats | default({}) | tojson | safe }}
   </script>
 
   <!-- Application Script -->

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Masuk - E-Surat SMADA</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-card" aria-labelledby="login-title">
+    <div class="login-brand">
+      <div class="login-brand-mark" aria-hidden="true">S</div>
+      <div>
+        <h1 id="login-title">E-Surat SMADA</h1>
+        <p>Akses khusus petugas tata usaha</p>
+      </div>
+    </div>
+
+    {% if error %}
+      <p class="login-error" role="alert">{{ error }}</p>
+    {% endif %}
+
+    <form class="login-form" method="post" action="{{ url_for('login') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ next_path }}">
+      <label>
+        Username
+        <input name="username" type="text" autocomplete="username" required autofocus maxlength="80">
+      </label>
+      <label>
+        Password
+        <input name="password" type="password" autocomplete="current-password" required maxlength="256">
+      </label>
+      <button class="btn-bottom-navy" type="submit">Masuk ke aplikasi</button>
+    </form>
+
+    <p class="login-help">
+      Data guru dan murid bersifat terbatas. Jangan membagikan akun atau membuka aplikasi ini ke internet publik.
+    </p>
+  </main>
+</body>
+</html>

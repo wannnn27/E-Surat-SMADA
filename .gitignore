@@ -9,3 +9,15 @@ venv/
 *.log
 .DS_Store
 Thumbs.db
+
+# Seluruh data operasional mengandung NIP/NISN/riwayat dan tidak boleh masuk
+# commit baru, apa pun format filenya. README struktur tetap dilacak.
+/data/**
+!/data/README.md
+
+# Artefak lokal/QA
+/qa/
+/generated/
+/backups/
+.coverage
+.pytest_cache/

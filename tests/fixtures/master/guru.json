@@ -1,0 +1,18 @@
+[
+  {
+    "nip": "190000000000000002",
+    "nama": "GURU PENGUJIAN",
+    "jabatan": "Guru Matematika",
+    "golongan": "III/c",
+    "ttl": "Wonosari, 1 Januari 1980",
+    "status_pegawai": "PNS"
+  },
+  {
+    "nip": "190000000000000001",
+    "nama": "KEPALA SEKOLAH PENGUJIAN",
+    "jabatan": "Kepala Sekolah",
+    "golongan": "IV/a",
+    "ttl": "Wonosari, 2 Februari 1975",
+    "status_pegawai": "PNS"
+  }
+]
