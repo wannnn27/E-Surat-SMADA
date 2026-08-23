@@ -101,6 +101,7 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
 }
 
 /* Executive Stats Summary Strip */
@@ -168,6 +169,7 @@ body {
   display: flex;
   width: 100%;
   min-height: 100vh;
+  align-items: stretch;
 }
 
 /* Left Sidebar Navigation (Matching Reference Image) */
@@ -310,10 +312,10 @@ body {
 /* Main Dashboard Workspace */
 .app-main {
   flex: 1;
+  min-width: 0;
   padding: 28px 36px;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
 }
 
 .dashboard-wrapper {
@@ -1040,6 +1042,8 @@ input.form-control:focus {
   .app-main {
     padding: 0;
     background: var(--bg-page);
+    overflow-y: visible;
+    overflow-x: hidden;
   }
 
   .dashboard-wrapper {
@@ -1049,6 +1053,7 @@ input.form-control:focus {
     box-shadow: none;
     gap: 14px;
     background: transparent;
+    max-width: 100%;
   }
 }
 
@@ -1103,15 +1108,18 @@ input.form-control:focus {
   /* ── MAIN CONTENT AREA ── */
   .app-main {
     padding: 0;
+    overflow-y: visible;
+    overflow-x: hidden;
   }
 
   .dashboard-wrapper {
-    padding: 14px 14px 0;
+    padding: 14px 14px 24px;
     border-radius: 0;
     border: none;
     box-shadow: none;
     background: var(--bg-page);
     gap: 12px;
+    max-width: 100%;
   }
 
   /* ── STATS STRIP → 2×2 PREMIUM GRID ── */

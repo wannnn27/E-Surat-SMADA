@@ -507,6 +507,14 @@ function setWizardStep(step) {
 }
 
 // Initialize Step 1 navigation buttons
+// Declare module-level previewBtn BEFORE setWizardStep(1) to avoid TDZ
+const previewBtn = document.getElementById('previewBtn');
+const previewModal = document.getElementById('previewModal');
+const modalCloseBtn = document.getElementById('modalCloseBtn');
+const modalEditBtn = document.getElementById('modalEditBtn');
+const modalDownloadBtn = document.getElementById('modalDownloadBtn');
+const suratForm = document.getElementById('suratForm');
+
 setWizardStep(1);
 
 // Stepper Item Clicks
@@ -541,13 +549,6 @@ const mobileResetEl = document.getElementById('mobileResetBtn');
 if (mobileResetEl) mobileResetEl.addEventListener('click', resetFn);
 
 // Modal Preview Handlers
-const previewBtn = document.getElementById('previewBtn');
-const previewModal = document.getElementById('previewModal');
-const modalCloseBtn = document.getElementById('modalCloseBtn');
-const modalEditBtn = document.getElementById('modalEditBtn');
-const modalDownloadBtn = document.getElementById('modalDownloadBtn');
-const suratForm = document.getElementById('suratForm');
-
 previewBtn.addEventListener('click', () => {
   if (currentWizardStep === 1) {
     if (!jenisInput.value) {
