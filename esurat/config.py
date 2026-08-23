@@ -12,7 +12,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BASE_DIR = PROJECT_ROOT  # Alias kompatibilitas untuk script/test lama.
 DATA_ROOT = PROJECT_ROOT / "data"
 DATA_DIR = DATA_ROOT / "master"
-DB_PATH = DATA_ROOT / "runtime" / "surat_smada.db"
+_env_db = os.getenv("ESURAT_DB_PATH")
+if _env_db:
+    DB_PATH = Path(_env_db)
+elif os.getenv("VERCEL"):
+    DB_PATH = Path("/tmp/surat_smada.db")
+else:
+    DB_PATH = DATA_ROOT / "runtime" / "surat_smada.db"
 TEMPLATE_ROOT = PROJECT_ROOT / "templates_surat"
 TEMPLATE_DIR = TEMPLATE_ROOT / "active"
 WIB = timezone(timedelta(hours=7), name="Asia/Jakarta")

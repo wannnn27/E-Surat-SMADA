@@ -10,10 +10,12 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Seluruh data operasional mengandung NIP/NISN/riwayat dan tidak boleh masuk
-# commit baru, apa pun format filenya. README struktur tetap dilacak.
+# Seluruh data operasional lokal. README dan data/master JSON tetap dilacak untuk deployment.
 /data/**
 !/data/README.md
+!/data/master/
+!/data/master/*.json
+
 
 # Artefak lokal/QA
 /qa/

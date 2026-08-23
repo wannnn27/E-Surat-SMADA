@@ -28,7 +28,11 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
     """Migrasi SQLite secara additive; record lama tidak diubah atau dihapus."""
 
     path = Path(db_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        path = Path("/tmp/surat_smada.db")
+        path.parent.mkdir(parents=True, exist_ok=True)
     conn = _connect_db(path)
     try:
         conn.execute("PRAGMA journal_mode = WAL")

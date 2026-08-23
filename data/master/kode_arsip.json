@@ -1,0 +1,586 @@
+[
+  {
+    "kode": "000",
+    "keterangan": "UMUM"
+  },
+  {
+    "kode": "00.1",
+    "keterangan": "KETATAUSAHAAN DAN KERUMAHTANGGAAN"
+  },
+  {
+    "kode": "00.1.1",
+    "keterangan": "Telekomunikasi"
+  },
+  {
+    "kode": "00.1.2",
+    "keterangan": "Perjalanan Dinas Dalam Negeri"
+  },
+  {
+    "kode": "00.1.2.3",
+    "keterangan": "Perjalanan Dinas Pegawai"
+  },
+  {
+    "kode": "00.1.4",
+    "keterangan": "Penggunaan Fasilitas Kantor (antara lain permintaan dan penggunaan ruang, gedung, kendaraan, wisma, rumah dinas, dan fasilitas kantor lainnya)"
+  },
+  {
+    "kode": "00.1.4.1",
+    "keterangan": "MOU/Perjanjian Kerjasama Sewa"
+  },
+  {
+    "kode": "00.1.8",
+    "keterangan": "Pemeliharaan Gedung, Taman dan Peralatan Kantor"
+  },
+  {
+    "kode": "00.1.9",
+    "keterangan": "Pengelolaan Jaringan Listrik, Air, Telepon, Komputer dan Internet"
+  },
+  {
+    "kode": "00.1.9.1",
+    "keterangan": "Perbaikan/Pemeliharaan"
+  },
+  {
+    "kode": "00.1.9.2",
+    "keterangan": "Pemasangan"
+  },
+  {
+    "kode": "00.1.12",
+    "keterangan": "Administrasi Pakaian Dinas Pegawai, Satpam, Petugas Kebersihan dan Pegawai lainnya"
+  },
+  {
+    "kode": "00.2",
+    "keterangan": "PERLENGKAPAN"
+  },
+  {
+    "kode": "000.2.2.2",
+    "keterangan": "Laporan dan evaluasi inventarisasi dan penyimpanan"
+  },
+  {
+    "kode": "00.2.4",
+    "keterangan": "Penghapusan Barang Milik Daerah antara lain: Keputusan Pembentukan Tim, Berita Acara Penghapusan Barang Milik Daerah, Daftar Barang yang dihapuskan, Laporan Hasil Pelaksaan Penghapusan BMD termasuk didalamnya proses lelang penghapusan"
+  },
+  {
+    "kode": "00.3",
+    "keterangan": "PENGADAAN"
+  },
+  {
+    "kode": "00.3.1",
+    "keterangan": "Rencana pengadaan barang dan jasa (antara lain : Identifikasi dan analisis kebutuhan barang/jasa, penyusunan dan penetapan rencana penganggaran pengadaan, penetapan kebijakan umum, penyusunan kerangka acuan kerja (KAK), pengumuman rencana umum pengadaan)"
+  },
+  {
+    "kode": "00.4",
+    "keterangan": "PERPUSTAKAAN"
+  },
+  {
+    "kode": "00.4.1",
+    "keterangan": "Kebijakan di bidang Perpustakaan yang dilakukan oleh Pemerintah Daerah"
+  },
+  {
+    "kode": "00.4.3",
+    "keterangan": "Koleksi Pustaka"
+  },
+  {
+    "kode": "00.4.3.1",
+    "keterangan": "Pembelian"
+  },
+  {
+    "kode": "00.4.3.2",
+    "keterangan": "Hibah"
+  },
+  {
+    "kode": "00.4.3.3",
+    "keterangan": "Hadiah"
+  },
+  {
+    "kode": "00.4.6",
+    "keterangan": "Layanan Perpustakaan"
+  },
+  {
+    "kode": "00.4.6.2",
+    "keterangan": "Sirkulasi antara lain : peminjaman, pengembalian, dan statistik, dan laporan"
+  },
+  {
+    "kode": "00.4.7",
+    "keterangan": "Kerjasama Perpustakaan"
+  },
+  {
+    "kode": "00.4.14.3",
+    "keterangan": "Perpustakaan Sekolah"
+  },
+  {
+    "kode": "00.4.16",
+    "keterangan": "Pembinaan dan Pemberdayaan SDM Perpustakaan"
+  },
+  {
+    "kode": "00.5",
+    "keterangan": "KEARSIPAN"
+  },
+  {
+    "kode": "00.5.2",
+    "keterangan": "Pembinaan Kearsipan"
+  },
+  {
+    "kode": "00.5.2.6",
+    "keterangan": "Bimbingan Konsultasi Kearsipan"
+  },
+  {
+    "kode": "00.5.2.12",
+    "keterangan": "Sosialisasi, Penyuluhan, Bimtek, Pendampingan, Apresiasi"
+  },
+  {
+    "kode": "00.5.3",
+    "keterangan": "Pengelolaan Arsip Dinamis"
+  },
+  {
+    "kode": "00.5.6",
+    "keterangan": "Penyusutan Arsip"
+  },
+  {
+    "kode": "00.5.6.1",
+    "keterangan": "Pemindahan Arsip (antara lain : Berita Acara Pemindahan, Daftar arsip yang dipindahkan)"
+  },
+  {
+    "kode": "00.5.6.2",
+    "keterangan": "Pemusnahan Arsip (antara lain : SK penetapan panitia penilai arsip, pertimbangan panitia penilai, permintaan persetujuan Kepala ANRI untuk pemusnahan arsip dengan retensi sekurang-kurangnya 10 tahun atau persetujuan kepala daerah selaku pimpinan pencipta arsip untuk pemusnahan arsip dengan retensi di bawah 10 tahun, penetapan arsip yang dimusnahkan, berita acara pemusnahan arsip, daftar arsip yang dimusnahkan"
+  },
+  {
+    "kode": "00.8",
+    "keterangan": "ORGANISASI DAN TATA LAKSANA"
+  },
+  {
+    "kode": "00.8.3",
+    "keterangan": "Ketatalaksanaan"
+  },
+  {
+    "kode": "00.8.3.2",
+    "keterangan": "Standar Pelayanan"
+  },
+  {
+    "kode": "00.8.3.3",
+    "keterangan": "Standar Operasional Prosedur"
+  },
+  {
+    "kode": "00.8.3.4",
+    "keterangan": "Pelayanan Publik"
+  },
+  {
+    "kode": "00.8.6.1",
+    "keterangan": "Budaya Kerja"
+  },
+  {
+    "kode": "00.10",
+    "keterangan": "KEKAYAAN/ASET DAERAH/ASET TETAP"
+  },
+  {
+    "kode": "00.10.8",
+    "keterangan": "Penatausahaan barang milik daerah"
+  },
+  {
+    "kode": "00.10.9",
+    "keterangan": "Pemindahtanganan dan penghapusan barang milik daerah"
+  },
+  {
+    "kode": "200.0",
+    "keterangan": "POLITIK"
+  },
+  {
+    "kode": "200.2",
+    "keterangan": "PEMILU"
+  },
+  {
+    "kode": "300.0",
+    "keterangan": "KEAMANAN DAN KETERTIBAN"
+  },
+  {
+    "kode": "300.2",
+    "keterangan": "PENANGGULANGAN BENCANA, PENCARIAN, DAN PERTOLONGAN"
+  },
+  {
+    "kode": "300.2.1",
+    "keterangan": "Kebijakan di bidang penanggulangan bencara yang dilakukan oleh Pemerintah Daerah"
+  },
+  {
+    "kode": "300.2.3",
+    "keterangan": "Pencegahan dan Kesiapsiagaan"
+  },
+  {
+    "kode": "400.0",
+    "keterangan": "KESEJAHTERAAN RAKYAT"
+  },
+  {
+    "kode": "400.2",
+    "keterangan": "PEMBERDAYAAN PEREMPUAN DAN PERLINDUNGAN ANAK"
+  },
+  {
+    "kode": "400.2.4",
+    "keterangan": "Perlindungan Anak (Hak sipil, masalah sosial, kekerasan terhadap anak, anak berkebutuhan khusus, anak berhadapan dengan hukum, remaja bermasalah sosial)"
+  },
+  {
+    "kode": "400.2.4.1",
+    "keterangan": "Pencegahan kekerasan terhadap anak"
+  },
+  {
+    "kode": "400.3",
+    "keterangan": "PENDIDIKAN"
+  },
+  {
+    "kode": "400.3.1",
+    "keterangan": "Kebijakan di bidang pendidikan yang dilakukan oleh Pemerintah Daerah"
+  },
+  {
+    "kode": "400.3.8",
+    "keterangan": "Sekolah Menengah Atas/Sekolah Menengah Kejuruan"
+  },
+  {
+    "kode": "400.3.8.1",
+    "keterangan": "Kurikulum"
+  },
+  {
+    "kode": "400.3.8.2",
+    "keterangan": "Bahan Ajar"
+  },
+  {
+    "kode": "400.3.8.3",
+    "keterangan": "Pelatihan"
+  },
+  {
+    "kode": "400.3.8.4",
+    "keterangan": "Block Grant"
+  },
+  {
+    "kode": "400.3.8.5",
+    "keterangan": "Bimbingan Teknis/Sosialisasi"
+  },
+  {
+    "kode": "400.3.8.6",
+    "keterangan": "Lomba, Sayembara, Festival"
+  },
+  {
+    "kode": "400.3.8.7",
+    "keterangan": "Bantuan Operasional Sekolah (BOS)"
+  },
+  {
+    "kode": "400.3.8.8",
+    "keterangan": "Bantuan Siswa Miskin"
+  },
+  {
+    "kode": "400.3.8.9",
+    "keterangan": "Administrasi Sekolah (SKBM, syarat masuk sekolah, PLS, tahun ajaran baru, hari libur, mutasi siswa dll)"
+  },
+  {
+    "kode": "400.3.8.10",
+    "keterangan": "Metode Belajar (Study Tur, Study Banding, Study Tiru, KI, Siswa Magang, PKL, Diskusi lapangan, Widyaiswara, Karya Tulis, Ekstrakurikuler, dll)"
+  },
+  {
+    "kode": "400.3.8.11",
+    "keterangan": "Sekolah Adiwiyata"
+  },
+  {
+    "kode": "400.3.8.12",
+    "keterangan": "Kemitraan / Kerjasama"
+  },
+  {
+    "kode": "400.3.8.13",
+    "keterangan": "Kurikulum Pendidikan Menengah"
+  },
+  {
+    "kode": "400.3.8.14",
+    "keterangan": "Silabus Modul Pendidikan Menengah"
+  },
+  {
+    "kode": "400.3.8.15",
+    "keterangan": "Dana Alokasi Khusus (DAK)"
+  },
+  {
+    "kode": "400.3.10",
+    "keterangan": "Pendidik dan Tenaga Kependidikan"
+  },
+  {
+    "kode": "400.3.10.2",
+    "keterangan": "Uji Kompetensi Guru"
+  },
+  {
+    "kode": "400.3.10.3",
+    "keterangan": "Sertifikasi Guru"
+  },
+  {
+    "kode": "400.3.10.4",
+    "keterangan": "Penilaian Prestasi Kerja Guru dan Pengawas Sekolah"
+  },
+  {
+    "kode": "400.3.10.8",
+    "keterangan": "Bimtek/Sosialisasi"
+  },
+  {
+    "kode": "400.3.10.9",
+    "keterangan": "Penilaian Kinerja Pendidik & Tenaga Kependidikan"
+  },
+  {
+    "kode": "400.3.10.10",
+    "keterangan": "Pengembangan dan Peningkatan Kompetensi Profesi Pendidik dan Tenaga Kependidikan"
+  },
+  {
+    "kode": "400.3.14",
+    "keterangan": "Perizinan Pendidikan"
+  },
+  {
+    "kode": "400.3.14.1",
+    "keterangan": "Pendidikan Menengah"
+  },
+  {
+    "kode": "400.1.16.2",
+    "keterangan": "Pembinaan Berbasis Budaya Perencanaan hingga Evaluasi"
+  },
+  {
+    "kode": "400.5",
+    "keterangan": "KEPEMUDAAN"
+  },
+  {
+    "kode": "400.5.8",
+    "keterangan": "Organisasi Kepemudaan dan Pengawasan Kepramukaan"
+  },
+  {
+    "kode": "400.5.8.3",
+    "keterangan": "Pemberdayaan Organisasi Kepelajaran: Kelembagaan dan Sumberdaya"
+  },
+  {
+    "kode": "400.5.11",
+    "keterangan": "Kepramukaan"
+  },
+  {
+    "kode": "400.7",
+    "keterangan": "KESEHATAN"
+  },
+  {
+    "kode": "400.7.6",
+    "keterangan": "Kesehatan Jiwa"
+  },
+  {
+    "kode": "400.7.6.4",
+    "keterangan": "Pencegahan dan Penanggulangan Narkotika dan Sejenisnya"
+  },
+  {
+    "kode": "400.7.27",
+    "keterangan": "Promosi Kesehatan"
+  },
+  {
+    "kode": "400.8",
+    "keterangan": "AGAMA DAN KEPERCAYAAN"
+  },
+  {
+    "kode": "400.8.2.8",
+    "keterangan": "Haji"
+  },
+  {
+    "kode": "400.8.4",
+    "keterangan": "Kegiatan Keagamaan"
+  },
+  {
+    "kode": "400.8.4.1",
+    "keterangan": "Kegiatan Keagamaan (Islam)"
+  },
+  {
+    "kode": "400.8.4.2",
+    "keterangan": "Kegiatan Keagamaan (Kristen Protestan)"
+  },
+  {
+    "kode": "400.8.4.3",
+    "keterangan": "Kegiatan Keagamaan (Kristen Katolik)"
+  },
+  {
+    "kode": "400.14",
+    "keterangan": "HUBUNGAN MASYARAKAT"
+  },
+  {
+    "kode": "400.14.1",
+    "keterangan": "Keprotokolan"
+  },
+  {
+    "kode": "400.14.1.1",
+    "keterangan": "Penyelenggaraan Acara Kedinasan (upacara, pelantikan, peresmian, dan jamuan termasuk acara peringatan hari-hari besar)"
+  },
+  {
+    "kode": "400.14.4.4",
+    "keterangan": "Hubungan dengan Perguruan Tinggi/sekolah, termasuk magang, pendidikan sistem ganda (PSG)/praktek kerja lapangan (PKL)"
+  },
+  {
+    "kode": "400.14.8",
+    "keterangan": "Publikasi Melalui Media Cetak maupun Elektronik"
+  },
+  {
+    "kode": "400.14.11",
+    "keterangan": "Ucapan Terimakasih, Ucapan Selamat, Bela Sungkawa, Permohonan Maaf, Mohon Diri"
+  },
+  {
+    "kode": "500.12.5.1",
+    "keterangan": "Layanan Jaringan Telekomunikasi"
+  },
+  {
+    "kode": "500.12.5.2",
+    "keterangan": "Layanan Jasa Telekomunikasi"
+  },
+  {
+    "kode": "500.12.14",
+    "keterangan": "Komunikasi Publik"
+  },
+  {
+    "kode": "500.13.3",
+    "keterangan": "Pemasaran Pariwisata"
+  },
+  {
+    "kode": "800.0",
+    "keterangan": "KEPEGAWAIAN"
+  },
+  {
+    "kode": "800.1",
+    "keterangan": "Sumber Daya Manusia (SDM)"
+  },
+  {
+    "kode": "800.1.3.1",
+    "keterangan": "Usulan Alih Status, Pindah Instansi, Pindah Wilayah Kerja, Diperbantukan, Dipekerjakan, Penugasan Sementara, Mutasi antar Perwakilan, Mutasi ke dan dari Perwakilan, Pemindahan Sementara, Persetujuan/Pertimbangan Kepala BKN"
+  },
+  {
+    "kode": "800.1.3.6",
+    "keterangan": "Pengelolaan Jabatan Fungsional (pengusulan, pengangkatan, pemberhentian, kenaikan jenjang, uji kompetensi)"
+  },
+  {
+    "kode": "800.1.4.1",
+    "keterangan": "Usulan Tugas Belajar/ijin belajar/diklat/kursus/magang/praktek kerja di Instansi lain/Pertukaran antar ASN dengan pegawai swasta/Keterangan Belajar/Beasiswa"
+  },
+  {
+    "kode": "800.1.4.4",
+    "keterangan": "Standar Kinerja Pegawai (SKP) dan Penilaian Prestasi Kerja"
+  },
+  {
+    "kode": "800.1.4.5",
+    "keterangan": "Angka Kredit antara lain : Pengajuan Daftar Usul Pengajuan Angka Kredit, Penilaian Daftar Usul Pengajuan Angka Kredit"
+  },
+  {
+    "kode": "800.1.5",
+    "keterangan": "Kinerja ASN"
+  },
+  {
+    "kode": "800.1.6",
+    "keterangan": "Kode Etik/Disiplin, Pemberhentian dan Pensiun ASN"
+  },
+  {
+    "kode": "800.1.6.6",
+    "keterangan": "Pensiun ASN antara lain : Administrasi Pensiun ASN, Penetapan Pensiun ASN"
+  },
+  {
+    "kode": "800.1.9.1",
+    "keterangan": "Pengolahan Data dan Informasi Kepegawaian"
+  },
+  {
+    "kode": "800.1.9.4",
+    "keterangan": "Sistem Pengelolaan Arsip Kepegawaian Fisik"
+  },
+  {
+    "kode": "800.1.9.5",
+    "keterangan": "Pengelolaan Kartu Identitas Pegawai / ID Card"
+  },
+  {
+    "kode": "800.1.10.3",
+    "keterangan": "Gaji dan Tunjangan, Kesejahteraan dan Kinerja"
+  },
+  {
+    "kode": "800.1.10.2",
+    "keterangan": "Kepangkatan, Pengangkatan dan Pemberhentian Dalam Jabatan"
+  },
+  {
+    "kode": "800.1.11",
+    "keterangan": "Administrasi Pegawai"
+  },
+  {
+    "kode": "800.1.11.1",
+    "keterangan": "Surat Perintah Dinas/Tugas Dinas"
+  },
+  {
+    "kode": "800.1.11.2",
+    "keterangan": "Cuti Sakit"
+  },
+  {
+    "kode": "800.1.11.3",
+    "keterangan": "Cuti Melahirkan"
+  },
+  {
+    "kode": "800.1.11.4",
+    "keterangan": "Cuti Tahunan"
+  },
+  {
+    "kode": "800.1.11.5",
+    "keterangan": "Cuti Alasan Penting"
+  },
+  {
+    "kode": "800.1.11.6",
+    "keterangan": "Cuti Besar"
+  },
+  {
+    "kode": "800.1.11.8",
+    "keterangan": "Karpeg/kartu ASN virtual/KPE/karis/karsu/kartu Taspen"
+  },
+  {
+    "kode": "800.1.11.9",
+    "keterangan": "Keanggotaan Organisasi Profesi/Kedinasan"
+  },
+  {
+    "kode": "800.1.11.10",
+    "keterangan": "Laporan Pajak Penghasilan Pribadi (LP2P)"
+  },
+  {
+    "kode": "800.1.11.10.1",
+    "keterangan": "LHKASN"
+  },
+  {
+    "kode": "800.1.11.11",
+    "keterangan": "Keterangan Penerimaan Pembayaran Penghasilan Penghasilan Pegawai (KP4)"
+  },
+  {
+    "kode": "800.1.11.13",
+    "keterangan": "Pengurusan Kenaikan Gaji Berkala, Mutasi Gaji/Tunjangan"
+  },
+  {
+    "kode": "800.1.12.5",
+    "keterangan": "Pakaian Dinas"
+  },
+  {
+    "kode": "800.1.12.8",
+    "keterangan": "Pemberian Piagam Penghargaan dan Tanda Jasa"
+  },
+  {
+    "kode": "800.1.12.11",
+    "keterangan": "KORPRI"
+  },
+  {
+    "kode": "800.2",
+    "keterangan": "PENDIDIKAN DAN PELATIHAN"
+  },
+  {
+    "kode": "800.2.2",
+    "keterangan": "Pendidikan dan Pelatihan"
+  },
+  {
+    "kode": "900.0",
+    "keterangan": "KEUANGAN"
+  },
+  {
+    "kode": "900.1",
+    "keterangan": "KEUANGAN DAERAH"
+  },
+  {
+    "kode": "900.1.3.5",
+    "keterangan": "Dokumen Penatausahaan Keuangan"
+  },
+  {
+    "kode": "900.1.3.6",
+    "keterangan": "Pertanggungjawaban Penggunaan Dana / SPJ"
+  },
+  {
+    "kode": "900.1.3.10",
+    "keterangan": "Laporan Keuangan"
+  },
+  {
+    "kode": "900.1.3.11",
+    "keterangan": "SKPP"
+  }
+]
