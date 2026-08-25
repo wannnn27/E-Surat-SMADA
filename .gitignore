@@ -10,11 +10,9 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Seluruh data operasional lokal. README dan data/master JSON tetap dilacak untuk deployment.
+# Seluruh data operasional lokal. Hanya petunjuk provisioning yang boleh dilacak.
 /data/**
 !/data/README.md
-!/data/master/
-!/data/master/*.json
 
 
 # Artefak lokal/QA

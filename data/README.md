@@ -1,9 +1,22 @@
 # Struktur data operasional
 
-- `source/` berisi workbook Excel resmi sebagai sumber import.
-- `master/` berisi JSON tervalidasi yang dibaca aplikasi saat startup.
-- `runtime/` berisi SQLite riwayat dan counter nomor surat.
+Direktori ini hanya dokumentasi tata letak. Untuk pilot/produksi, letakkan data
+di luar checkout Git dan set `ESURAT_DATA_ROOT`, misalnya
+`D:\E-Surat-Private`:
 
-Ketiga folder mengandung data pribadi/operasional dan diabaikan untuk commit
-baru. Provision, backup, dan pemindahannya harus melalui kanal privat. Menambah
-aturan `.gitignore` tidak menghapus salinan yang sudah ada di riwayat Git.
+```text
+D:\E-Surat-Private\
+|-- source\       # workbook Excel resmi untuk import
+|-- master\       # guru.json, murid.json, kode_arsip.json
+|-- runtime\      # surat_smada.db (riwayat dan counter nomor)
+`-- config\       # users.json dan konfigurasi privat lain
+```
+
+`ESURAT_DATA_DIR`, `ESURAT_DB_PATH`, dan `ESURAT_SOURCE_DIR` dapat dipakai
+sebagai override granular. Folder dan file tersebut mengandung data pribadi;
+batasi ACL ke akun service/admin, enkripsi media/backup, serta kirim melalui
+kanal privat.
+
+Semua isi `data/**` selain README ini ditolak oleh pemeriksaan CI. Aturan ini
+tidak membersihkan data yang sudah ada pada history Git; respons insiden dan
+sanitasi remote tetap harus dilakukan oleh pemilik repository.

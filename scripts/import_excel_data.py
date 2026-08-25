@@ -19,9 +19,9 @@ import openpyxl
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_ROOT = BASE_DIR / "data"
-MASTER_DATA_DIR = DATA_ROOT / "master"
-EXCEL_DIR = DATA_ROOT / "source"
+DATA_ROOT = Path(os.getenv("ESURAT_DATA_ROOT", str(BASE_DIR / "data"))).expanduser()
+MASTER_DATA_DIR = Path(os.getenv("ESURAT_DATA_DIR", str(DATA_ROOT / "master"))).expanduser()
+EXCEL_DIR = Path(os.getenv("ESURAT_SOURCE_DIR", str(DATA_ROOT / "source"))).expanduser()
 
 DEFAULT_FILES = {
     "guru": "nomonatif guru peg sma2 2026.xlsx",

@@ -10,13 +10,13 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BASE_DIR = PROJECT_ROOT  # Alias kompatibilitas untuk script/test lama.
-DATA_ROOT = PROJECT_ROOT / "data"
-DATA_DIR = DATA_ROOT / "master"
+_env_root = os.getenv("ESURAT_DATA_ROOT")
+DATA_ROOT = Path(_env_root).expanduser() if _env_root else PROJECT_ROOT / "data"
+_env_data = os.getenv("ESURAT_DATA_DIR")
+DATA_DIR = Path(_env_data).expanduser() if _env_data else DATA_ROOT / "master"
 _env_db = os.getenv("ESURAT_DB_PATH")
 if _env_db:
-    DB_PATH = Path(_env_db)
-elif os.getenv("VERCEL"):
-    DB_PATH = Path("/tmp/surat_smada.db")
+    DB_PATH = Path(_env_db).expanduser()
 else:
     DB_PATH = DATA_ROOT / "runtime" / "surat_smada.db"
 TEMPLATE_ROOT = PROJECT_ROOT / "templates_surat"

@@ -1,178 +1,214 @@
 # E-Surat SMADA
 
-E-Surat SMADA adalah aplikasi web internal untuk membuat surat Tata Usaha dari data master guru/staf, siswa, kode arsip, dan template Microsoft Word. Operator memilih jenis surat, memilih orang berdasarkan identitas resminya, mengisi kebutuhan surat, lalu mengunduh DOCX untuk diperiksa sebelum dicetak atau diarsipkan.
+E-Surat SMADA adalah aplikasi internal Tata Usaha untuk membuat DOCX surat dari
+data master resmi. Aplikasi memvalidasi identitas, mengalokasikan nomor secara
+transaksional, mencatat operator, dan menyediakan riwayat yang dapat dicari,
+dibatalkan tanpa memakai ulang nomor, serta diekspor ke CSV.
 
-> **Peringatan data pribadi:** JSON, Excel, SQLite, dan hasil QA dapat memuat NIP, NIS/NISN, biodata, serta riwayat surat. Audit menemukan repository GitHub publik, deployment Vercel aktif, dan endpoint data dapat diakses tanpa autentikasi. Anggap ini insiden paparan sampai repository, deployment, history, cache, fork, dan clone ditangani. Aturan `.gitignore` baru tidak membersihkan salinan lama. Jangan gunakan aplikasi untuk produksi sebelum prosedur [P0 pada Audit Produksi](docs/AUDIT_PRODUKSI.md#p0-data-pribadi-di-git-dan-github) selesai.
+> **Status rilis:** kode saat ini adalah kandidat **pilot internal terbatas**,
+> belum rilis produksi. Data pribadi telah dikeluarkan dari Git index pada
+> working tree ini, tetapi data masih pernah masuk history/remote GitHub. History,
+> cache, fork, clone, deployment lama, dan respons insiden harus ditangani oleh
+> pemilik repository sebelum aplikasi diberikan kepada sekolah. Lihat
+> [Audit Produksi](docs/AUDIT_PRODUKSI.md) dan
+> [Checklist Rilis](docs/RELEASE_CHECKLIST.md).
 
-## Status dan cakupan
+## Cakupan fitur
 
-Aplikasi saat ini memiliki **7 template otomatis aktif dari 25 dokumen bisnis**. Terdapat satu DOCX tambahan sebagai master teknis kop, sehingga inventaris fisik berjumlah 26 DOCX. Hanya tujuh jenis berikut yang ditampilkan dan didukung alur generate:
+Tujuh dari 25 dokumen bisnis telah menjadi template dinamis:
 
-| Kategori | Jenis surat | Berkas aktif |
+| Kategori | Jenis surat | Penandatangan |
 | --- | --- | --- |
-| Guru/staf | Permohonan izin | `izin_guru.docx` |
-| Guru/staf | Permohonan cuti | `cuti_guru.docx` |
-| Guru/staf | Pemberitahuan sakit | `sakit_guru.docx` |
-| Guru/staf | Surat tugas | `3. Surat Tugas-smada.docx` |
-| Guru/staf | Surat keterangan | `11. Surat Keterangan-smada.docx` |
-| Siswa | Izin tidak masuk | `izin_murid.docx` |
-| Siswa | Dispensasi kegiatan | `dispensasi_murid.docx` |
+| Guru/staf | Permohonan izin | Pemohon |
+| Guru/staf | Permohonan cuti | Pemohon |
+| Guru/staf | Pemberitahuan sakit | Pemohon |
+| Guru/staf | Surat tugas | Kepala Sekolah |
+| Guru/staf | Surat keterangan | Kepala Sekolah |
+| Siswa | Izin tidak masuk | Orang tua/wali |
+| Siswa | Dispensasi kegiatan | Kepala Sekolah |
 
-**Delapan belas DOCX lainnya belum dimigrasikan menjadi template dinamis dan tidak boleh dianggap siap generate.** Salinan sumber kop berada di `templates_surat/master/kop_smada.docx`; dokumen legacy `13. Pengumuman-smada.docx` bukan jenis surat aktif.
+Delapan belas DOCX di `templates_surat/legacy/` belum aktif dan tidak boleh
+dianggap siap generate. Ringkasan layar juga bukan pratinjau visual Word; DOCX
+tetap wajib diperiksa sebelum diterbitkan.
 
-Kesiapan yang direkomendasikan saat ini adalah **pilot internal terbatas**, setelah seluruh blocker P0/P1 dalam [docs/AUDIT_PRODUKSI.md](docs/AUDIT_PRODUKSI.md) ditutup. Hasil "Ringkasan Data" di antarmuka bukan render visual DOCX; dokumen hasil tetap wajib dibuka dan diperiksa di Word sebelum diterbitkan.
+Kontrol yang tersedia pada kandidat ini:
 
-## Struktur proyek
+- akun individual dari file privat dengan role `admin`, `operator`, dan
+  `reviewer`;
+- session 8 jam, login throttling, CSRF, cookie aman, dan retry token CSRF satu
+  kali di browser;
+- nomor otomatis unik/idempoten pada satu instance SQLite;
+- nomor manual hanya untuk admin;
+- audit operator, pencarian/filter/pagination riwayat, pembatalan bernomor, dan
+  ekspor CSV;
+- fail-fast bila data/template/database persisten tidak tersedia;
+- CI dengan fixture sintetis dan pemeriksaan agar data operasional tidak masuk
+  kembali ke Git.
+
+## Arsitektur yang didukung
+
+Aplikasi didesain untuk **satu proses aplikasi dan satu database SQLite pada disk
+persisten**. Dua profil yang didukung:
 
 ```text
-surat-app/
-|-- app.py                         # entry point WSGI/Waitress
-|-- esurat/                        # package backend per tanggung jawab
-|   |-- application.py             # factory dan route Flask
-|   |-- config.py                  # path, batas, timezone, regex
-|   |-- database.py                # migrasi, nomor, dan riwayat
-|   |-- letters.py                 # validasi dan context surat
-|   |-- master_data.py             # validasi JSON/template
-|   |-- registry.py                # definisi tujuh jenis surat
-|   |-- rendering.py               # render dan inspeksi DOCX
-|   |-- security.py                # auth, CSRF, local-only
-|   `-- utils.py                   # helper teks dan tanggal
-|-- data/
-|   |-- source/                    # Excel resmi; privat/ignored
-|   |-- master/                    # JSON hasil import; privat/ignored
-|   `-- runtime/                   # SQLite; privat/ignored
-|-- templates_surat/
-|   |-- active/                    # 7 template aktif
-|   |-- legacy/                    # 18 referensi belum aktif
-|   `-- master/kop_smada.docx      # sumber teknis builder
-|-- templates/ dan static/         # UI Flask
-|-- scripts/                       # import, build, backup, QA
-|-- tests/fixtures/                # data uji sintetis tanpa PII
-|-- docs/                          # audit dan panduan operator
-`-- qa/ dan backups/               # artefak lokal, tidak di-Git
+Satu PC: browser --> http://127.0.0.1:5000
+LAN: browser TU --> HTTPS :443 --> Caddy/Nginx/IIS --> 127.0.0.1:5000
 ```
 
-`import esurat` tidak membaca data produksi atau membuat database. Hanya `app.py` yang membuat instance aplikasi untuk deployment; test menyuntikkan fixture sintetis.
+Vercel/serverless tidak didukung karena filesystem-nya tidak menjamin database
+dan counter nomor persisten. Aplikasi sekarang menolak startup di Vercel agar
+tidak kehilangan riwayat atau menerbitkan nomor yang salah. Backend port 5000
+jangan dibuka langsung ke LAN/Internet.
 
-## Persyaratan
+## Instalasi pengembangan
 
-- Python 3.10 atau lebih baru.
-- Microsoft Word atau aplikasi kompatibel DOCX untuk pemeriksaan akhir dan cetak.
-- Browser modern.
-- Untuk akses LAN: nama pengguna, hash kata sandi, secret sesi stabil, reverse proxy HTTPS, dan firewall.
-
-## Instalasi dan uji lokal
-
-Contoh PowerShell dari root proyek:
+Persyaratan: Python 3.10+, browser modern, serta Microsoft Word/aplikasi DOCX
+yang ditetapkan sekolah untuk pemeriksaan hasil.
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-python scripts/import_excel_data.py
-python app.py
 ```
 
-Buka `http://127.0.0.1:5000`. Perintah import tanpa `--write` hanya memeriksa data dan tidak mengubah berkas.
+`import esurat` tidak membaca data produksi dan tidak membuat database. Aplikasi
+baru memuat master dan menginisialisasi database ketika `create_app()`/`app.py`
+dijalankan.
 
-Konfigurasi bawaan mengikat aplikasi ke loopback (`127.0.0.1`) tanpa autentikasi. Dalam mode ini permintaan non-lokal ditolak. Ini cocok untuk evaluasi di satu komputer, bukan untuk layanan LAN.
+## Provision data secara privat
 
-Untuk Linux/macOS, aktivasi virtual environment dengan `source .venv/bin/activate`, lalu gunakan perintah Python yang sama.
+Direkomendasikan memakai root di luar repository:
 
-## Konfigurasi environment
+```text
+D:\E-Surat-Private\
+|-- source\       # tiga workbook sumber resmi
+|-- master\       # tiga JSON hasil import
+|-- runtime\      # surat_smada.db
+`-- config\       # users.json
+```
 
-Daftar variabel tersedia di [.env.example](.env.example). **Aplikasi tidak memuat `.env` secara otomatis**; atur environment pada shell, Windows Service, service manager, atau pemuat environment yang dikelola administrator. Jangan commit nilai rahasia.
-
-| Variabel | Default | Keterangan |
-| --- | --- | --- |
-| `ESURAT_HOST` | `127.0.0.1` | Alamat bind aplikasi |
-| `ESURAT_PORT` | `5000` | Port aplikasi |
-| `ESURAT_THREADS` | `4` | Thread Waitress, valid 1-32 |
-| `ESURAT_USERNAME` | kosong | Nama pengguna; bersama password mengaktifkan autentikasi |
-| `ESURAT_PASSWORD_HASH` | kosong | Hash kata sandi yang direkomendasikan |
-| `ESURAT_SECRET_KEY` | kosong | Wajib dan harus stabil saat autentikasi aktif |
-| `ESURAT_HTTPS` | `0` | Set `1` bila pengguna mengakses melalui HTTPS |
-| `ESURAT_KEPSEK_NIP` | kosong | Opsional bila tepat satu record berjabatan Kepala Sekolah; isi bila perlu memilih secara eksplisit |
-| `ESURAT_NUMBER_SUFFIX` | `SMADA` | Sufiks nomor surat, 1-20 karakter |
-
-Buat hash kata sandi dan secret di mesin admin:
+Atur environment pada konfigurasi service/secret manager:
 
 ```powershell
-python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash(input('Password TU: ')))"
+$env:ESURAT_DATA_ROOT='D:\E-Surat-Private'
+python scripts/import_excel_data.py          # validasi/check-only
+python scripts/import_excel_data.py --write  # publikasi JSON setelah disetujui
+```
+
+Nama file workbook default dijelaskan oleh output skrip import. Gunakan
+`--guru-file`, `--murid-file`, dan `--kode-file` bila namanya berbeda. Override
+`ESURAT_SOURCE_DIR`, `ESURAT_DATA_DIR`, dan `ESURAT_DB_PATH` tersedia untuk tata
+letak nonstandar.
+
+## Akun dan secret
+
+Buat hash untuk setiap pengguna pada mesin admin:
+
+```powershell
+python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash(input('Password: ')))"
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-Contoh menjalankan backend untuk reverse proxy HTTPS pada mesin yang sama:
+Simpan akun di `D:\E-Surat-Private\config\users.json`, bukan di Git:
+
+```json
+[
+  {
+    "username": "operator-tu-1",
+    "password_hash": "<hash-yang-dihasilkan>",
+    "role": "operator",
+    "active": true
+  },
+  {
+    "username": "pemeriksa-tu-1",
+    "password_hash": "<hash-yang-dihasilkan>",
+    "role": "reviewer",
+    "active": true
+  },
+  {
+    "username": "admin-esurat",
+    "password_hash": "<hash-yang-dihasilkan>",
+    "role": "admin",
+    "active": true
+  }
+]
+```
+
+Konfigurasi minimum LAN:
 
 ```powershell
 $env:ESURAT_HOST='127.0.0.1'
 $env:ESURAT_PORT='5000'
-$env:ESURAT_THREADS='4'
-$env:ESURAT_USERNAME='tu'
-$env:ESURAT_PASSWORD_HASH='<hasil-hash>'
+$env:ESURAT_DATA_ROOT='D:\E-Surat-Private'
+$env:ESURAT_USERS_FILE='D:\E-Surat-Private\config\users.json'
 $env:ESURAT_SECRET_KEY='<secret-acak-stabil>'
 $env:ESURAT_HTTPS='1'
 python app.py
 ```
 
-Arsitektur LAN yang direkomendasikan:
+Jangan mengubah `ESURAT_SECRET_KEY` pada restart biasa. Perubahan secret memang
+mengakhiri semua session/token CSRF. Browser menangani token CSRF kedaluwarsa
+dengan meminta token baru dan mengulangi satu request; jika session login sudah
+berakhir, pengguna tetap harus login ulang. Lihat seluruh variabel di
+[.env.example](.env.example).
 
-```text
-Browser TU --HTTPS:443--> Caddy/Nginx/IIS --HTTP lokal--> 127.0.0.1:5000
-```
+## Menjalankan dan memeriksa
 
-TLS harus diterminasi oleh reverse proxy dengan sertifikat yang dipercaya. Firewall hanya membuka port 443; jangan paparkan port 5000. Batasi endpoint `/healthz` di reverse proxy/firewall karena endpoint tersebut tidak memerlukan login dan menampilkan status serta jumlah data. Konfigurasikan HSTS di reverse proxy. Bind langsung ke `0.0.0.0` tanpa autentikasi akan ditolak aplikasi; bind langsung dengan autentikasi tetapi HTTP tetap tidak layak produksi karena kredensial dan data tidak terenkripsi.
-
-## Pemeliharaan
-
-### Perbarui data master
+Untuk evaluasi satu PC, `ESURAT_HOST=127.0.0.1` tanpa autentikasi masih didukung.
+Request dari alamat non-loopback akan ditolak.
 
 ```powershell
-# 1. Validasi saja; tidak mengubah JSON
-python scripts/import_excel_data.py
-
-# 2. Setelah laporan bersih dan backup dibuat
-python scripts/import_excel_data.py --write
-
-# 3. Restart aplikasi agar data baru dimuat
+python app.py
 ```
 
-Gunakan `--guru-file`, `--murid-file`, atau `--kode-file` bila lokasi Excel berbeda. Jangan edit JSON hasil import secara manual.
+Buka `http://127.0.0.1:5000` dan cek health lokal di `/healthz`. Endpoint health
+tidak menampilkan jumlah guru/siswa dan tetap harus dibatasi pada reverse proxy.
 
-### Rebuild tujuh template aktif
+Pemeriksaan kandidat rilis:
+
+```powershell
+python scripts/check_no_sensitive_tracking.py
+python -m pip check
+python -m unittest discover -s tests -v
+python scripts/generate_qa_letters.py
+python -m compileall app.py esurat scripts tests
+node --check static/app.js
+```
+
+QA DOCX selalu memakai data sintetis dari `tests/fixtures/`, bukan master
+produksi. Workflow CI menjalankan pemeriksaan yang sama pada Python 3.10 dan
+3.14. Pemeriksaan Word, Print Preview, printer nyata, HTTPS, backup/restore, dan
+rekonsiliasi nomor tetap gate manual sekolah.
+
+## Backup dan pemeliharaan
+
+```powershell
+python scripts/backup_data.py
+python scripts/backup_data.py --include-excel
+python scripts/backup_data.py --output-dir D:\Backup-E-Surat
+python scripts/verify_backup.py D:\Backup-E-Surat\surat-smada-YYYYMMDD-HHMMSS
+```
+
+Skrip mengikuti `ESURAT_DATA_ROOT` beserta override granular. Verifikator
+memeriksa daftar file, ukuran, SHA-256, file tambahan/hilang, dan SQLite
+`quick_check`. Backup mengandung
+PII: enkripsi, batasi akses, simpan di media terpisah, tetapkan retensi, dan uji
+restore. Jangan edit SQLite atau JSON hasil import secara manual.
+
+Untuk rebuild tujuh template aktif:
 
 ```powershell
 python scripts/build_docx_templates.py
 ```
 
-Jalankan dalam maintenance window setelah backup/versioning DOCX, lalu restart aplikasi dan periksa hasil ketujuh surat di Word. Skrip ini **tidak** mengaktifkan 18 DOCX lainnya.
-
-### Backup data
-
-```powershell
-# JSON dan snapshot SQLite yang konsisten
-python scripts/backup_data.py
-
-# Termasuk workbook Excel master
-python scripts/backup_data.py --include-excel
-```
-
-Backup dibuat di `backups/surat-smada-YYYYMMDD-HHMMSS/` dengan versi layout, mapping restore, dan SHA-256 di `manifest.json`. Folder tersebut mengandung data pribadi: enkripsi, batasi akses, salin ke media terpisah, tetapkan retensi, dan uji restore berkala. Backup ini tidak mencakup source code atau template DOCX.
-
-## Pemeriksaan sebelum pilot
-
-```powershell
-python -m compileall app.py esurat scripts tests
-python scripts/import_excel_data.py
-python -m unittest discover -s tests -v
-python scripts/generate_qa_letters.py
-python app.py
-```
-
-Saat aplikasi hidup, cek `http://127.0.0.1:5000/healthz`. Pada audit 23 Agustus 2026, 15 automated tests dengan data sintetis lulus. Alur browser desktop/mobile juga lulus tanpa error console, dan tujuh hasil QA berhasil dirender satu halaman A4 melalui LibreOffice headless. Microsoft Word, Print Preview, dan sampel cetak oleh petugas tetap menjadi gate karena belum ada CI atau visual regression Word otomatis.
+Jalankan dalam maintenance window, kemudian ulangi test, QA DOCX, pemeriksaan
+Word, dan persetujuan dua orang.
 
 ## Dokumentasi
 
-- [Panduan TU](docs/PANDUAN_TU.md): alur operator, pemeliharaan admin, backup, troubleshooting, dan restore.
-- [Audit Produksi](docs/AUDIT_PRODUKSI.md): keputusan kesiapan, risiko, kontrol, checklist pilot, dan rencana migrasi template.
+- [Panduan TU](docs/PANDUAN_TU.md) — operasi harian, role, pembatalan, backup,
+  restore, dan troubleshooting.
+- [Audit Produksi](docs/AUDIT_PRODUKSI.md) — keputusan kesiapan, risiko tersisa,
+  dan scope template.
+- [Checklist Rilis](docs/RELEASE_CHECKLIST.md) — langkah teknis dan persetujuan
+  yang harus selesai sebelum serah terima.

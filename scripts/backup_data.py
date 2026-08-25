@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -13,7 +14,12 @@ from typing import Sequence
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_ROOT = BASE_DIR / "data"
+DATA_ROOT = Path(os.getenv("ESURAT_DATA_ROOT", str(BASE_DIR / "data"))).expanduser()
+MASTER_DATA_DIR = Path(os.getenv("ESURAT_DATA_DIR", str(DATA_ROOT / "master"))).expanduser()
+DATABASE_PATH = Path(
+    os.getenv("ESURAT_DB_PATH", str(DATA_ROOT / "runtime" / "surat_smada.db"))
+).expanduser()
+SOURCE_DIR = Path(os.getenv("ESURAT_SOURCE_DIR", str(DATA_ROOT / "source"))).expanduser()
 WIB = timezone(timedelta(hours=7), name="Asia/Jakarta")
 
 
@@ -53,17 +59,22 @@ def create_backup(
     *,
     include_excel: bool = False,
     data_dir: Path = DATA_ROOT,
+    master_dir: Path | None = None,
+    database_path: Path | None = None,
+    excel_dir: Path | None = None,
     now: datetime | None = None,
 ) -> Path:
     """Buat snapshot konsisten dan kembalikan direktori backup final."""
 
-    source_dir = data_dir.expanduser().resolve()
-    database_source = source_dir / "runtime" / "surat_smada.db"
-    master_source = source_dir / "master"
+    operational_root = data_dir.expanduser().resolve()
+    database_source = (
+        database_path or operational_root / "runtime" / "surat_smada.db"
+    ).resolve()
+    master_source = (master_dir or operational_root / "master").resolve()
     json_sources = tuple(
         master_source / name for name in ("guru.json", "murid.json", "kode_arsip.json")
     )
-    excel_source = source_dir / "source"
+    excel_source = (excel_dir or operational_root / "source").resolve()
 
     missing = [path for path in (database_source, *json_sources) if not path.is_file()]
     if include_excel and not excel_source.is_dir():
@@ -97,11 +108,11 @@ def create_backup(
         "layout_version": 1,
         "created_at": created_at.isoformat(timespec="seconds"),
         "restore_mapping": {
-            "surat_smada.db": "data/runtime/surat_smada.db",
-            "guru.json": "data/master/guru.json",
-            "murid.json": "data/master/murid.json",
-            "kode_arsip.json": "data/master/kode_arsip.json",
-            "source/": "data/source/",
+            "surat_smada.db": "$ESURAT_DB_PATH atau $ESURAT_DATA_ROOT/runtime/surat_smada.db",
+            "guru.json": "$ESURAT_DATA_DIR atau $ESURAT_DATA_ROOT/master",
+            "murid.json": "$ESURAT_DATA_DIR atau $ESURAT_DATA_ROOT/master",
+            "kode_arsip.json": "$ESURAT_DATA_DIR atau $ESURAT_DATA_ROOT/master",
+            "source/": "$ESURAT_SOURCE_DIR atau $ESURAT_DATA_ROOT/source",
         },
         "files": [
             {
@@ -124,6 +135,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     destination = create_backup(
         args.output_dir,
         include_excel=args.include_excel,
+        master_dir=MASTER_DATA_DIR,
+        database_path=DATABASE_PATH,
+        excel_dir=SOURCE_DIR,
     )
     print(f"[OK] Backup dibuat: {destination}")
     print("[PENTING] Simpan salinan terenkripsi di media terpisah dan uji pemulihan berkala.")

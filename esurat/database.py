@@ -13,6 +13,7 @@ from flask import current_app
 
 from .config import DB_PATH, WIB
 from .errors import RequestValidationError
+from .security import _current_actor
 from .utils import _now, _parse_iso_date
 
 
@@ -28,11 +29,7 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
     """Migrasi SQLite secara additive; record lama tidak diubah atau dihapus."""
 
     path = Path(db_path)
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        path = Path("/tmp/surat_smada.db")
-        path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     conn = _connect_db(path)
     try:
         conn.execute("PRAGMA journal_mode = WAL")
@@ -55,7 +52,12 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
                 hash TEXT,
                 payload_hash TEXT,
                 error TEXT,
-                updated_at TEXT
+                updated_at TEXT,
+                created_by TEXT,
+                created_by_role TEXT,
+                cancelled_at TEXT,
+                cancelled_by TEXT,
+                cancel_reason TEXT
             )
             """
         )
@@ -69,10 +71,30 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
             "payload_hash": "TEXT",
             "error": "TEXT",
             "updated_at": "TEXT",
+            "created_by": "TEXT",
+            "created_by_role": "TEXT",
+            "cancelled_at": "TEXT",
+            "cancelled_by": "TEXT",
+            "cancel_reason": "TEXT",
         }
         for column, column_type in additions.items():
             if column not in existing:
                 conn.execute(f'ALTER TABLE riwayat_surat ADD COLUMN "{column}" {column_type}')
+
+        # Record sebelum schema status/audit dianggap surat legacy yang telah
+        # dibuat. Backfill ini membuat filter dan ekspor konsisten tanpa
+        # menghapus atau mengalokasikan ulang nomor.
+        conn.execute(
+            "UPDATE riwayat_surat SET status = 'generated' WHERE status IS NULL OR status = ''"
+        )
+        conn.execute(
+            "UPDATE riwayat_surat SET created_by = 'legacy' "
+            "WHERE created_by IS NULL OR created_by = ''"
+        )
+        conn.execute(
+            "UPDATE riwayat_surat SET created_by_role = 'unknown' "
+            "WHERE created_by_role IS NULL OR created_by_role = ''"
+        )
 
         conn.execute(
             """
@@ -102,7 +124,7 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS ix_riwayat_status_updated ON riwayat_surat(status, updated_at)"
         )
-        conn.execute("PRAGMA user_version = 2")
+        conn.execute("PRAGMA user_version = 3")
         conn.commit()
     except Exception:
         conn.rollback()
@@ -129,6 +151,7 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
     kode = str(normalized["kode_arsip"])
     year = _parse_iso_date(str(normalized["tanggal_surat"])).year
     template_hash = current_app.extensions["template_hashes"][validated["jenis"]]
+    actor, actor_role = _current_actor()
 
     conn = _connect_db(db_path)
     try:
@@ -230,8 +253,8 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
             INSERT INTO riwayat_surat (
                 created_at, updated_at, jenis_surat, jenis_key, template, hash,
                 nomor_surat, nama_pemohon, id_pemohon, kategori, keperluan,
-                request_id, status, payload_hash, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'rendering', ?, NULL)
+                request_id, status, payload_hash, error, created_by, created_by_role
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'rendering', ?, NULL, ?, ?)
             """,
             (
                 now_iso,
@@ -247,6 +270,8 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
                 validated["context"].get("keperluan", "-"),
                 request_id,
                 payload_hash,
+                actor,
+                actor_role,
             ),
         )
         record_id = cursor.lastrowid
@@ -276,6 +301,53 @@ def _mark_letter_status(record_id: int, status: str, error: str | None = None) -
             (status, error[:1000] if error else None, _now().isoformat(timespec="seconds"), record_id),
         )
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def _cancel_letter(record_id: int, reason: str) -> dict[str, Any]:
+    actor, actor_role = _current_actor()
+    if actor_role not in {"admin", "reviewer"}:
+        raise RequestValidationError(
+            "Hanya admin atau reviewer yang dapat membatalkan surat",
+            {"role": "otorisasi tidak mencukupi"},
+            403,
+        )
+
+    conn = _connect_db(Path(current_app.config["DATABASE"]))
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT * FROM riwayat_surat WHERE id = ?", (record_id,)).fetchone()
+        if row is None:
+            raise RequestValidationError(
+                "Riwayat surat tidak ditemukan", {"id": "tidak ditemukan"}, 404
+            )
+        status = str(row["status"] or "legacy")
+        if status == "cancelled":
+            conn.commit()
+            return dict(row)
+        if status not in {"generated", "failed"}:
+            raise RequestValidationError(
+                "Surat dengan status ini tidak dapat dibatalkan",
+                {"status": status},
+                409,
+            )
+        cancelled_at = _now().isoformat(timespec="seconds")
+        conn.execute(
+            """
+            UPDATE riwayat_surat
+            SET status = 'cancelled', cancelled_at = ?, cancelled_by = ?,
+                cancel_reason = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (cancelled_at, actor, reason, cancelled_at, record_id),
+        )
+        conn.commit()
+        updated = conn.execute("SELECT * FROM riwayat_surat WHERE id = ?", (record_id,)).fetchone()
+        return dict(updated) if updated is not None else {}
     except Exception:
         conn.rollback()
         raise

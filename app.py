@@ -1,4 +1,4 @@
-"""Entry point WSGI, Vercel, dan ``python app.py``."""
+"""Entry point WSGI dan ``python app.py``."""
 
 from esurat import *  # noqa: F401,F403 - facade kompatibilitas publik
 

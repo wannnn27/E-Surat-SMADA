@@ -16,7 +16,8 @@
 
   const jenisSuratData = parseJsonScript('jenisSuratDataJson', {});
   const statsData = parseJsonScript('statsDataJson', {});
-  const csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  const currentRole = document.documentElement.getAttribute('data-role') || '';
+  let csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
 
   const elements = {
     appRoot: document.querySelector('.app-container'),
@@ -202,8 +203,72 @@
     }
   }
 
+  function applyCsrfToken(token) {
+    csrfToken = String(token || '');
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta) meta.content = csrfToken;
+    document.querySelectorAll('input[name="_csrf_token"], input[name="csrf_token"]').forEach((input) => {
+      input.value = csrfToken;
+    });
+  }
+
+  function prepareCsrfRequest(options) {
+    const prepared = Object.assign({}, options || {});
+    const method = String(prepared.method || 'GET').toUpperCase();
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return prepared;
+
+    const headers = new Headers(prepared.headers || {});
+    if (csrfToken) headers.set('X-CSRFToken', csrfToken);
+    prepared.headers = headers;
+
+    if (prepared.body instanceof FormData && csrfToken) {
+      if (prepared.body.has('_csrf_token')) prepared.body.set('_csrf_token', csrfToken);
+      prepared.body.set('csrf_token', csrfToken);
+    }
+    return prepared;
+  }
+
+  async function isCsrfFailure(response) {
+    if (response.status !== 403) return false;
+    try {
+      const payload = await response.clone().json();
+      return payload && (
+        payload.code === 'csrf_invalid' ||
+        payload.error === 'Token CSRF tidak valid atau kedaluwarsa'
+      );
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  async function refreshCsrfToken(signal) {
+    const response = await fetch('/api/csrf', {
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'same-origin',
+      signal
+    });
+    if (!response.ok) throw await responseError(response);
+    const payload = await response.json();
+    if (!payload || !payload.csrf_token) {
+      throw new Error('Sesi tidak dapat diperbarui. Muat ulang halaman atau login kembali.');
+    }
+    applyCsrfToken(payload.csrf_token);
+  }
+
+  async function fetchWithCsrfRetry(url, options) {
+    let prepared = prepareCsrfRequest(options);
+    let response = await fetch(url, prepared);
+    if (await isCsrfFailure(response)) {
+      await refreshCsrfToken(prepared.signal);
+      prepared = prepareCsrfRequest(options);
+      response = await fetch(url, prepared);
+    }
+    return response;
+  }
+
   async function fetchJson(url, options) {
-    const response = await fetch(url, options || {});
+    const response = await fetchWithCsrfRetry(url, options || {});
     if (!response.ok) throw await responseError(response);
     const payload = await response.json();
     if (payload && payload.error) throw new Error(payload.error);
@@ -676,7 +741,9 @@
         personId(state.person, state.kategori) !== selectedId
       ) return;
 
-      const fields = Array.isArray(payload.fields) ? payload.fields : [];
+      const fields = (Array.isArray(payload.fields) ? payload.fields : []).filter(
+        (field) => currentRole === 'admin' || field.name !== 'nomor_surat_custom'
+      );
       if (!fields.length) throw new Error('Konfigurasi field untuk template ini belum tersedia.');
       state.fieldSchema = fields;
       renderFields(fields);
@@ -1058,7 +1125,7 @@
 
     try {
       elements.requestIdInput.value = state.requestId;
-      const response = await fetch('/generate', {
+      const response = await fetchWithCsrfRetry('/generate', {
         method: 'POST',
         body: new FormData(elements.form),
         headers: Object.assign({}, csrfHeaders(), { 'X-Request-ID': state.requestId }),
@@ -1339,33 +1406,104 @@
         'history-person',
         'Pemohon: ' + (record.nama_pemohon || '-') + ' (' + (record.id_pemohon || '-') + ')'
       ),
-      createElement('div', 'history-purpose', 'Keperluan: ' + (record.keperluan || '-'))
+      createElement('div', 'history-purpose', 'Keperluan: ' + (record.keperluan || '-')),
+      createElement('div', 'history-actor', 'Operator: ' + (record.created_by || 'data lama'))
     );
     const side = createElement('div', 'history-side');
     const status = String(record.status || 'generated').toLowerCase();
-    const statusMeta = status === 'failed'
-      ? { label: 'Gagal', className: 'header-pill-badge error-badge' }
-      : status === 'rendering'
-        ? { label: 'Diproses', className: 'header-pill-badge pending-badge' }
-        : { label: 'Terbuat', className: 'header-pill-badge success-badge' };
+    const statusMeta = status === 'cancelled'
+      ? { label: 'Dibatalkan', className: 'header-pill-badge error-badge' }
+      : status === 'failed'
+        ? { label: 'Gagal', className: 'header-pill-badge error-badge' }
+        : status === 'rendering'
+          ? { label: 'Diproses', className: 'header-pill-badge pending-badge' }
+          : { label: 'Terbuat', className: 'header-pill-badge success-badge' };
     side.append(
       createElement('span', 'history-date', record.created_at || '-'),
       createElement('span', statusMeta.className, statusMeta.label)
     );
+    if (record.cancel_reason) {
+      side.append(createElement('small', 'history-cancel-reason', record.cancel_reason));
+    }
+    if (['admin', 'reviewer'].includes(currentRole) && ['generated', 'failed'].includes(status)) {
+      const cancelButton = createElement('button', 'reset-link-btn history-cancel-btn', 'Batalkan');
+      cancelButton.type = 'button';
+      cancelButton.addEventListener('click', () => void cancelHistoryRecord(record));
+      side.append(cancelButton);
+    }
     card.append(main, side);
     return card;
   }
 
-  async function openRiwayatDirectory() {
-    openModal(modals.riwayat, byId('closeRiwayatModalBtn'));
+  async function cancelHistoryRecord(record) {
+    const reason = window.prompt(
+      'Masukkan alasan pembatalan nomor ' + (record.nomor_surat || '-') + ' (minimal 5 karakter):'
+    );
+    if (reason === null) return;
+    if (reason.trim().length < 5) {
+      setStatus(byId('riwayatModalStatus'), 'Alasan pembatalan minimal 5 karakter.', 'error');
+      return;
+    }
+    if (!window.confirm('Nomor akan dipertahankan dan ditandai dibatalkan. Lanjutkan?')) return;
+
+    const body = new FormData();
+    body.set('reason', reason.trim());
+    try {
+      await fetchJson('/api/history/' + encodeURIComponent(record.id) + '/cancel', {
+        method: 'POST',
+        body,
+        headers: csrfHeaders()
+      });
+      await openRiwayatDirectory(1, { open: false });
+    } catch (error) {
+      setStatus(
+        byId('riwayatModalStatus'),
+        error.message || 'Riwayat gagal dibatalkan.',
+        'error'
+      );
+    }
+  }
+
+  function renderHistoryPagination(payload) {
+    const container = byId('riwayatPagination');
+    container.replaceChildren();
+    const page = Number(payload.page || 1);
+    const pages = Number(payload.pages || 0);
+    if (pages <= 1) return;
+    const previous = createElement('button', 'btn-bottom-cancel', 'Sebelumnya');
+    previous.type = 'button';
+    previous.disabled = page <= 1;
+    previous.addEventListener('click', () => void openRiwayatDirectory(page - 1, { open: false }));
+    const label = createElement('span', 'history-page-label', 'Halaman ' + page + ' dari ' + pages);
+    const next = createElement('button', 'btn-bottom-cancel', 'Berikutnya');
+    next.type = 'button';
+    next.disabled = page >= pages;
+    next.addEventListener('click', () => void openRiwayatDirectory(page + 1, { open: false }));
+    container.append(previous, label, next);
+  }
+
+  async function openRiwayatDirectory(page, options) {
+    const settings = Object.assign({ open: true }, options || {});
+    if (settings.open) openModal(modals.riwayat, byId('closeRiwayatModalBtn'));
     const status = byId('riwayatModalStatus');
     const list = byId('riwayatModalList');
     const controller = requestController('history');
     setStatus(status, 'Memuat riwayat surat…', 'loading');
     try {
-      const records = normaliseList(await fetchJson('/api/list/riwayat', {
+      const params = new URLSearchParams({
+        page: String(page || 1),
+        per_page: '25'
+      });
+      const search = byId('historySearchInput').value.trim();
+      const statusFilter = byId('historyStatusFilter').value;
+      const typeFilter = byId('historyTypeFilter').value;
+      if (search) params.set('q', search);
+      if (statusFilter) params.set('status', statusFilter);
+      if (typeFilter) params.set('jenis', typeFilter);
+      const payload = await fetchJson('/api/list/riwayat?' + params.toString(), {
         signal: controller.signal
-      }));
+      });
+      const records = normaliseList(payload);
       list.replaceChildren();
       if (!records.length) list.append(createElement('p', 'empty-state', 'Belum ada riwayat surat.'));
       else {
@@ -1373,7 +1511,12 @@
         records.forEach((record) => fragment.append(historyCard(record)));
         list.append(fragment);
       }
-      setStatus(status, records.length + ' riwayat ditampilkan.', records.length ? 'success' : 'info');
+      renderHistoryPagination(payload);
+      setStatus(
+        status,
+        records.length + ' dari ' + Number(payload.total || records.length) + ' riwayat ditampilkan.',
+        records.length ? 'success' : 'info'
+      );
     } catch (error) {
       if (error.name !== 'AbortError') {
         list.replaceChildren();
@@ -1382,6 +1525,18 @@
     } finally {
       releaseController('history', controller);
     }
+  }
+
+  function exportHistoryCsv() {
+    const params = new URLSearchParams();
+    const search = byId('historySearchInput').value.trim();
+    const statusFilter = byId('historyStatusFilter').value;
+    const typeFilter = byId('historyTypeFilter').value;
+    if (search) params.set('q', search);
+    if (statusFilter) params.set('status', statusFilter);
+    if (typeFilter) params.set('jenis', typeFilter);
+    const suffix = params.toString() ? '?' + params.toString() : '';
+    window.location.assign('/api/history/export.csv' + suffix);
   }
 
   function debounceDirectory(input, key, callback) {
@@ -1579,6 +1734,14 @@
       mobileTemplate.addEventListener('click', () => openModal(modals.templates, byId('closeTemplatesModalBtn')));
     }
     byId('helpBtn').addEventListener('click', () => openModal(modals.help, byId('closeHelpModalBtn')));
+    byId('historyRefreshBtn').addEventListener('click', () => void openRiwayatDirectory(1, { open: false }));
+    byId('historyExportBtn').addEventListener('click', exportHistoryCsv);
+    byId('historySearchInput').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        void openRiwayatDirectory(1, { open: false });
+      }
+    });
 
     bindModalClose('closeGuruModalBtn', modals.guru);
     bindModalClose('closeMuridModalBtn', modals.murid);

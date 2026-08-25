@@ -1,6 +1,6 @@
 # Panduan Operasional E-Surat SMADA
 
-Panduan ini ditujukan kepada operator Tata Usaha dan administrator teknis SMAN 2 Wonosari. Versi audit: 23 Agustus 2026.
+Panduan ini ditujukan kepada operator Tata Usaha dan administrator teknis SMAN 2 Wonosari. Versi kandidat: 25 Agustus 2026.
 
 ## Batas penggunaan
 
@@ -22,12 +22,12 @@ Ringkasan di layar adalah ringkasan data tervalidasi, bukan tampilan halaman Wor
 
 | Peran | Tanggung jawab minimum |
 | --- | --- |
-| Operator TU | Memilih orang yang benar, mengisi surat, memeriksa ringkasan dan DOCX, menyimpan hasil di lokasi arsip resmi |
-| Pemeriksa/pejabat berwenang | Memeriksa substansi, nomor, penandatangan, dan kelayakan terbit |
-| Administrator teknis | Menjaga service, autentikasi, TLS, data master, template, backup, restore, dan log insiden |
+| Operator TU (`operator`) | Memilih orang yang benar, mengisi surat, memeriksa ringkasan dan DOCX, menyimpan hasil di lokasi arsip resmi; tidak berwenang nomor manual/pembatalan |
+| Pemeriksa (`reviewer`) | Memeriksa substansi, nomor, penandatangan, dan kelayakan terbit; dapat membatalkan dengan alasan |
+| Administrator (`admin`) | Menjaga service, akun, TLS, data master, template, backup/restore; dapat nomor manual dan pembatalan |
 | Pemilik data/pimpinan | Menetapkan hak akses, retensi, kebijakan nomor surat, penerimaan pilot, dan respons insiden data pribadi |
 
-Satu akun bersama dapat menyulitkan audit. Bila aplikasi mulai dipakai lebih luas, sediakan akun individual atau integrasi identitas sebagai backlog prioritas.
+Gunakan akun individual agar setiap nomor dapat ditelusuri. Jangan berbagi akun atau meninggalkan session terbuka ketika meja ditinggalkan.
 
 ## Aturan keamanan data
 
@@ -39,7 +39,7 @@ Satu akun bersama dapat menyulitkan audit. Bila aplikasi mulai dipakai lebih lua
 - Kunci layar atau logout ketika meja ditinggalkan.
 - Riwayat aplikasi menampilkan identitas dan nomor surat; aksesnya juga harus dibatasi.
 
-Repositori yang diaudit masih melacak data pribadi dan memiliki remote GitHub. Administrator wajib menyelesaikan tindakan P0 pada [Audit Produksi](AUDIT_PRODUKSI.md#p0-data-pribadi-di-git-dan-github) sebelum rollout.
+Kandidat lokal telah mengeluarkan data operasional dari Git index, tetapi history/remote lama pernah memuat data pribadi. Administrator wajib menyelesaikan tindakan P0 pada [Audit Produksi](AUDIT_PRODUKSI.md#p0-respons-data-pribadi) sebelum rollout.
 
 ## Checklist mulai hari kerja
 
@@ -54,8 +54,9 @@ Administrator atau petugas yang ditunjuk:
   Invoke-RestMethod http://127.0.0.1:5000/healthz
   ```
 
-- Pastikan respons berstatus sehat, pemeriksaan database/template lulus, dan jumlah guru, siswa, serta kode arsip masuk akal.
-- Jika status tidak sehat atau jumlah data berubah tanpa jadwal, hentikan penerbitan surat dan hubungi administrator.
+- Pastikan respons berstatus sehat dan pemeriksaan database/template lulus.
+- Cocokkan jumlah/sampel master melalui pencarian dan laporan import yang disetujui; health sengaja tidak membuka jumlah data.
+- Jika status tidak sehat atau master berubah tanpa jadwal, hentikan penerbitan surat dan hubungi administrator.
 
 Operator:
 
@@ -92,7 +93,7 @@ Jika ada dua nama mirip, gunakan nomor identitas sebagai pembeda. Bila orang tid
 - Isi keperluan secara spesifik, singkat, dan tanpa data pribadi yang tidak diperlukan.
 - Isi field khusus, misalnya jenis cuti, nama wali, kegiatan, penyelenggara, dan tempat.
 - Secara normal, **kosongkan nomor surat manual** agar server mengalokasikan nomor unik ketika dokumen dibuat.
-- Gunakan nomor manual hanya jika pejabat pengelola nomor telah memberikan nomor tersebut. Aplikasi menolak nomor yang sudah dipakai, tetapi tetap diperlukan kebijakan pencatatan di luar aplikasi bila ada sistem nomor lain.
+- Hanya role admin dapat memakai nomor manual setelah mendapat nomor dari pejabat pengelola. Operator tidak dapat melewati pembatasan ini.
 
 ### 4. Periksa Ringkasan Data
 
@@ -133,6 +134,14 @@ Gunakan pemeriksaan dua orang untuk masa pilot atau surat berisiko tinggi. Jika 
 
 Setelah disetujui, simpan DOCX/PDF final sesuai tata nama, klasifikasi, retensi, dan lokasi arsip sekolah. Riwayat aplikasi bukan pengganti sistem kearsipan resmi.
 
+### 8. Riwayat, ekspor, dan pembatalan
+
+- Gunakan pencarian serta filter status/jenis; navigasikan halaman bila hasil banyak.
+- `Ekspor CSV` mengekspor hasil sesuai filter aktif. Simpan CSV sebagai PII di lokasi terbatas dan hapus dari Downloads setelah dipindahkan.
+- Pembatalan hanya tersedia untuk admin/reviewer dan wajib memiliki alasan minimal lima karakter.
+- Pembatalan tidak menghapus record dan tidak membuat nomor dapat digunakan ulang.
+- Untuk surat pengganti, batalkan sesuai SOP lalu buat surat baru. Catat hubungan nomor lama-baru pada register resmi karena kandidat belum memiliki relasi koreksi digital.
+
 ## Menangani kesalahan
 
 | Gejala | Tindakan aman |
@@ -140,7 +149,7 @@ Setelah disetujui, simpan DOCX/PDF final sesuai tata nama, klasifikasi, retensi,
 | Data personel tidak ditemukan/salah | Hentikan form; minta admin memperbarui Excel, validasi import, `--write`, lalu restart |
 | Kode arsip ditolak | Pilih kode dari direktori; jangan mengarang kode |
 | HTTP 401 / kembali ke login | Login ulang; jika berulang, hubungi admin |
-| HTTP 403 / CSRF | Refresh halaman atau login ulang, lalu isi ulang dengan hati-hati |
+| HTTP 403 / CSRF | Browser mencoba mengambil token baru dan mengulang satu kali. Jika tetap gagal, login ulang; minta admin memeriksa secret stabil dan durasi session |
 | HTTP 409 / proses sedang berjalan / nomor konflik | Tunggu, cek Riwayat, lalu minta admin memeriksa status; jangan klik berulang |
 | Aplikasi tanpa autentikasi menolak akses jaringan | Ini kontrol local-only; admin harus memasang autentikasi dan HTTPS, bukan mematikan kontrol |
 | `/healthz` gagal atau status tidak sehat | Hentikan penerbitan; simpan bukti waktu/error dan eskalasi |
@@ -156,7 +165,9 @@ Catat insiden dengan waktu, operator, jenis surat, nomor/request ID bila ada, sc
 
 Aplikasi membaca environment proses dan **tidak otomatis membaca `.env`**. Simpan konfigurasi pada mekanisme secret/service manager yang hanya dapat dibaca admin. Contoh variabel ada di [../.env.example](../.env.example).
 
-Untuk satu komputer lokal, biarkan `ESURAT_HOST=127.0.0.1` dan jangan aktifkan akses jarak jauh. Untuk LAN, pertahankan backend di `127.0.0.1:5000`, aktifkan username + hash password + secret stabil, set `ESURAT_HTTPS=1`, dan letakkan reverse proxy HTTPS pada port 443. Firewall tidak boleh membuka port 5000. Batasi `/healthz` di proxy/firewall.
+Untuk satu komputer lokal, biarkan `ESURAT_HOST=127.0.0.1` dan jangan aktifkan akses jarak jauh. Untuk LAN, pertahankan backend di `127.0.0.1:5000`, gunakan `ESURAT_USERS_FILE` dengan akun individual, secret stabil, `ESURAT_HTTPS=1`, dan reverse proxy HTTPS pada port 443. Firewall tidak boleh membuka port 5000. Batasi `/healthz` di proxy/firewall. Vercel/serverless tidak didukung.
+
+Letakkan root operasional di luar checkout Git dan set `ESURAT_DATA_ROOT`. Struktur yang direkomendasikan adalah `source/`, `master/`, `runtime/`, dan `config/users.json`. Lihat [README](../README.md#provision-data-secara-privat).
 
 Jangan menjalankan lebih dari satu proses/instance aplikasi pada database SQLite yang sama. Konfigurasi Waitress saat ini ditujukan untuk satu proses dengan beberapa thread, bukan deployment multi-instance.
 
@@ -185,7 +196,7 @@ Lakukan pada maintenance window:
    ```
 
 6. Restart service/aplikasi. Data dimuat ke memori saat startup; tanpa restart proses lama masih memakai data lama.
-7. Periksa `/healthz`, cocokkan jumlah, cari beberapa guru/siswa/kode, lalu generate satu surat QA sesuai prosedur.
+7. Periksa `/healthz`, cocokkan laporan jumlah import, cari beberapa guru/siswa/kode, lalu generate satu surat UAT sesuai prosedur.
 
 Lokasi Excel alternatif dapat diberikan dengan `--guru-file`, `--murid-file`, dan `--kode-file`. Ketiga dataset divalidasi sebelum penulisan pertama, dan setiap JSON diganti secara atomik; walau demikian backup tetap wajib.
 
@@ -210,7 +221,7 @@ Lokasi Excel alternatif dapat diberikan dengan `--guru-file`, `--murid-file`, da
    python scripts/generate_qa_letters.py
    ```
 
-7. Pastikan seluruh automated test lulus. Buka ketujuh file di `qa/generated/` dan periksa Word serta Print Preview. Hapus/arsipkan hasil QA sesuai kebijakan karena isinya berasal dari data master produksi meskipun database suratnya sementara.
+7. Pastikan seluruh automated test lulus. Buka ketujuh file sintetis di `qa/generated/` dan periksa Word serta Print Preview. QA otomatis tidak membaca data master produksi.
 8. Catat siapa yang menyetujui template dan hash/rilisnya.
 
 ### Backup
@@ -221,6 +232,7 @@ Backup online yang konsisten untuk SQLite, JSON, dan manifest SHA-256:
 python scripts/backup_data.py
 python scripts/backup_data.py --include-excel
 python scripts/backup_data.py --output-dir D:\Backup-E-Surat
+python scripts/verify_backup.py D:\Backup-E-Surat\surat-smada-YYYYMMDD-HHMMSS
 ```
 
 Rekomendasi minimum:
@@ -232,7 +244,7 @@ Rekomendasi minimum:
 - kebijakan retensi dan pemusnahan tertulis;
 - uji restore berkala pada lingkungan terisolasi.
 
-`manifest.json` mencatat `layout_version`, mapping tujuan restore, path, ukuran, dan SHA-256 setiap berkas. Verifikasi hash sebelum restore. Backup default tidak mencakup source code, konfigurasi secret, atau template DOCX; simpan rilis aplikasi dan template secara terpisah serta privat.
+`manifest.json` mencatat `layout_version`, mapping tujuan restore, path, ukuran, dan SHA-256 setiap berkas. `verify_backup.py` juga menolak file hilang/tambahan dan menjalankan SQLite `quick_check`; jalankan sebelum serta sesudah memindahkan backup. Backup default tidak mencakup source code, konfigurasi secret, atau template DOCX; simpan rilis aplikasi dan template secara terpisah serta privat.
 
 ## Checklist restore/rollback
 
@@ -244,12 +256,12 @@ Restore adalah operasi admin dan memerlukan persetujuan pemilik layanan. Rollbac
 4. Pilih backup terakhir yang diketahui baik dan verifikasi semua SHA-256 terhadap `manifest.json`.
 5. Pulihkan hanya komponen yang diperlukan:
    - kode/template dari artefak rilis privat;
-   - `guru.json`, `murid.json`, dan `kode_arsip.json` ke `data/master/` bila master rusak;
-   - `surat_smada.db` ke `data/runtime/` hanya bila database memang harus dipulihkan;
-   - isi `source/` ke `data/source/` hanya bila workbook sumber juga harus dikembalikan.
+   - `guru.json`, `murid.json`, dan `kode_arsip.json` ke `$ESURAT_DATA_ROOT/master/` atau `ESURAT_DATA_DIR` bila master rusak;
+   - `surat_smada.db` ke `$ESURAT_DATA_ROOT/runtime/` atau `ESURAT_DB_PATH` hanya bila database memang harus dipulihkan;
+   - isi `source/` ke `$ESURAT_DATA_ROOT/source/` atau `ESURAT_SOURCE_DIR` bila workbook sumber juga harus dikembalikan.
 6. Pastikan file berada pada folder yang benar dan hak akses tetap terbatas.
 7. Start ulang satu instance aplikasi dengan environment produksi yang benar.
-8. Periksa `/healthz`, jumlah master, beberapa pencarian, login, dan Riwayat.
+8. Periksa `/healthz`, laporan/sampel master, beberapa pencarian, login, dan Riwayat.
 9. Jalankan automated test dan QA tujuh template, lalu buka DOCX hasilnya.
 10. Rekonsiliasi nomor surat terhadap register/arsip nyata. Tandai nomor yang pernah terbit; jangan menghapus atau menggunakan ulang nomor hanya karena tidak ada di database hasil restore.
 11. Minta operator/pemilik layanan menyetujui pembukaan kembali.

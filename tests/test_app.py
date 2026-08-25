@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import io
 import json
+import os
 import re
 import sqlite3
 import tempfile
@@ -16,6 +17,7 @@ from unittest.mock import patch
 
 import esurat
 from esurat import application as application_module
+from werkzeug.security import generate_password_hash
 
 
 FIXED_NOW = datetime(2026, 8, 23, 10, 30, tzinfo=esurat.WIB)
@@ -167,6 +169,11 @@ class BackendIntegrationTests(unittest.TestCase):
                     "payload_hash",
                     "error",
                     "updated_at",
+                    "created_by",
+                    "created_by_role",
+                    "cancelled_at",
+                    "cancelled_by",
+                    "cancel_reason",
                 }.issubset(columns)
             )
             counter = conn.execute(
@@ -278,9 +285,11 @@ class BackendIntegrationTests(unittest.TestCase):
         missing = no_token_client.post("/api/preview_render", data=form)
         self.assertEqual(missing.status_code, 403)
         self.assertIn("error", missing.get_json())
+        self.assertEqual(missing.get_json()["code"], "csrf_invalid")
 
         wrong = self.post("/api/preview_render", form, token="token-yang-salah")
         self.assertEqual(wrong.status_code, 403)
+        self.assertEqual(wrong.get_json()["code"], "csrf_invalid")
         valid = self.post("/api/preview_render", form)
         self.assertEqual(valid.status_code, 200)
 
@@ -424,8 +433,108 @@ class BackendIntegrationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Placeholder template belum terisi"):
             esurat._check_rendered_docx(buffer)
 
+    def test_14_history_filter_pagination_actor_and_cancellation(self) -> None:
+        form = self.valid_form("surat_keterangan_guru")
+        generated = self.post("/generate", form)
+        self.assertEqual(generated.status_code, 200, self.response_message(generated))
+        row = self.history_for(form["request_id"])
+        self.assertIsNotNone(row)
+        assert row is not None
+        self.assertEqual(row["created_by"], "local")
+        self.assertEqual(row["created_by_role"], "admin")
+
+        cancelled = self.post(
+            f"/api/history/{row['id']}/cancel",
+            {"reason": "Dibatalkan pada pengujian terkontrol"},
+        )
+        self.assertEqual(cancelled.status_code, 200, self.response_message(cancelled))
+        self.assertEqual(cancelled.get_json()["status"], "cancelled")
+
+        filtered = self.client.get(
+            "/api/list/riwayat?status=cancelled&jenis=surat_keterangan_guru&page=1&per_page=10"
+        )
+        self.assertEqual(filtered.status_code, 200)
+        payload = filtered.get_json()
+        self.assertGreaterEqual(payload["total"], 1)
+        self.assertEqual(payload["page"], 1)
+        self.assertTrue(all(item["status"] == "cancelled" for item in payload["items"]))
+        self.assertTrue(all(item["created_by"] == "local" for item in payload["items"]))
+
+        exported = self.client.get(
+            "/api/history/export.csv?status=cancelled&jenis=surat_keterangan_guru"
+        )
+        self.assertEqual(exported.status_code, 200)
+        self.assertIn("text/csv", exported.headers["Content-Type"])
+        self.assertIn("attachment", exported.headers["Content-Disposition"])
+        csv_text = exported.data.decode("utf-8-sig")
+        self.assertIn("Tanggal dibuat,Nomor surat,Jenis surat,Status", csv_text)
+        self.assertIn(row["nomor_surat"], csv_text)
+
 
 class DataContractTests(unittest.TestCase):
+    def test_public_unauthenticated_deployment_is_rejected(self) -> None:
+        with self.assertRaisesRegex(esurat.DataValidationError, "Akses publik tanpa autentikasi"):
+            esurat.create_app(
+                {
+                    "TESTING": True,
+                    "AUTH_ENABLED": False,
+                    "ALLOW_PUBLIC_UNAUTHENTICATED": True,
+                    "SECRET_KEY": "",
+                }
+            )
+
+    def test_vercel_deployment_is_rejected(self) -> None:
+        with patch.dict(os.environ, {"VERCEL": "1"}):
+            with self.assertRaisesRegex(esurat.DataValidationError, "Vercel tidak didukung"):
+                esurat.create_app(
+                    {
+                        "TESTING": False,
+                        "DATA_DIR": FIXTURE_DATA_DIR,
+                        "DATABASE": Path(tempfile.gettempdir()) / "unused-esurat-vercel.sqlite3",
+                    }
+                )
+
+    def test_users_file_requires_an_active_account(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="esurat-inactive-users-") as temp_dir:
+            users_file = Path(temp_dir) / "users.json"
+            users_file.write_text(
+                json.dumps(
+                    [
+                        {
+                            "username": "operator-nonaktif",
+                            "password_hash": generate_password_hash("password-pengujian"),
+                            "role": "operator",
+                            "active": False,
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(esurat.DataValidationError, "satu akun aktif"):
+                esurat.create_app(
+                    {
+                        "TESTING": True,
+                        "DATA_DIR": FIXTURE_DATA_DIR,
+                        "AUTH_USERS_FILE": str(users_file),
+                        "AUTH_USERNAME": "",
+                        "AUTH_PASSWORD": "",
+                        "AUTH_PASSWORD_HASH": "",
+                    }
+                )
+
+    def test_plaintext_password_is_rejected_outside_testing(self) -> None:
+        with self.assertRaisesRegex(esurat.DataValidationError, "plaintext tidak didukung"):
+            esurat.create_app(
+                {
+                    "TESTING": False,
+                    "DATA_DIR": FIXTURE_DATA_DIR,
+                    "AUTH_USERNAME": "operator-tu",
+                    "AUTH_PASSWORD": "jangan-dipakai-di-produksi",
+                    "AUTH_PASSWORD_HASH": "",
+                    "SECRET_KEY": "test-only-secret",
+                }
+            )
+
     def test_duplicate_nip_and_nisn_fail_fast(self) -> None:
         guru = load_fixture("guru.json")
         murid = load_fixture("murid.json")
@@ -515,6 +624,9 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual(logged_in.status_code, 302)
         self.assertEqual(logged_in.headers["Location"], "/")
         self.assertEqual(self.client.get("/").status_code, 200)
+        with self.client.session_transaction() as auth_session:
+            self.assertEqual(auth_session["role"], "admin")
+            self.assertTrue(auth_session.permanent)
 
         new_token = self.csrf()
         logged_out = self.client.post(
@@ -522,6 +634,154 @@ class AuthenticationTests(unittest.TestCase):
         )
         self.assertEqual(logged_out.status_code, 302)
         self.assertIn("/login", logged_out.headers["Location"])
+
+    def test_login_rate_limit(self) -> None:
+        token = self.csrf()
+        for _ in range(5):
+            response = self.client.post(
+                "/login",
+                data={"csrf_token": token, "username": "tidak-ada", "password": "salah"},
+            )
+            self.assertEqual(response.status_code, 401)
+        blocked = self.client.post(
+            "/login",
+            data={"csrf_token": token, "username": "tidak-ada", "password": "salah"},
+        )
+        self.assertEqual(blocked.status_code, 429)
+
+    def test_disabled_account_invalidates_existing_session(self) -> None:
+        token = self.csrf()
+        logged_in = self.client.post(
+            "/login",
+            data={
+                "csrf_token": token,
+                "username": "operator-tu",
+                "password": "password-pengujian",
+            },
+        )
+        self.assertEqual(logged_in.status_code, 302)
+        users = self.app.extensions["auth_users"]
+        saved = users.pop("operator-tu")
+        try:
+            denied = self.client.get("/api/list/guru")
+            self.assertEqual(denied.status_code, 401)
+            csrf_state = self.client.get("/api/csrf").get_json()
+            self.assertFalse(csrf_state["authenticated"])
+        finally:
+            users["operator-tu"] = saved
+
+
+class MultiUserWorkflowTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.temp_dir = tempfile.TemporaryDirectory(prefix="esurat-multi-user-tests-")
+        root = Path(cls.temp_dir.name)
+        cls.database = root / "multi-user.sqlite3"
+        cls.users_file = root / "users.json"
+        cls.users_file.write_text(
+            json.dumps(
+                [
+                    {
+                        "username": "operator-satu",
+                        "password_hash": generate_password_hash("password-operator"),
+                        "role": "operator",
+                    },
+                    {
+                        "username": "reviewer-satu",
+                        "password_hash": generate_password_hash("password-reviewer"),
+                        "role": "reviewer",
+                    },
+                ]
+            ),
+            encoding="utf-8",
+        )
+        cls.app = esurat.create_app(
+            {
+                "TESTING": True,
+                "DATA_DIR": FIXTURE_DATA_DIR,
+                "DATABASE": cls.database,
+                "INIT_DB_ON_CREATE": True,
+                "SECRET_KEY": "multi-user-test-secret",
+                "AUTH_USERS_FILE": str(cls.users_file),
+                "AUTH_USERNAME": "",
+                "AUTH_PASSWORD": "",
+                "AUTH_PASSWORD_HASH": "",
+                "AUTH_ENABLED": True,
+                "BIND_HOST": "127.0.0.1",
+                "KEPSEK_NIP": TEST_KEPSEK_NIP,
+                "NOW_FUNC": lambda: FIXED_NOW,
+            }
+        )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.temp_dir.cleanup()
+
+    def login(self, client, username: str, password: str) -> str:
+        token = client.get("/api/csrf").get_json()["csrf_token"]
+        response = client.post(
+            "/login",
+            data={"csrf_token": token, "username": username, "password": password},
+        )
+        self.assertEqual(response.status_code, 302)
+        return client.get("/api/csrf").get_json()["csrf_token"]
+
+    def test_operator_audit_manual_number_guard_and_reviewer_cancellation(self) -> None:
+        operator = self.app.test_client()
+        operator_csrf = self.login(operator, "operator-satu", "password-operator")
+        person = self.app.extensions["esurat_data"]["guru"][0]
+        form = {
+            "jenis_surat": "surat_keterangan_guru",
+            "kategori": "guru",
+            "id_value": person["nip"],
+            "tanggal_surat": "2026-08-23",
+            "tanggal_mulai": "2026-08-24",
+            "kode_arsip": "800.1.11",
+            "nomor_surat_custom": "MANUAL/001/2026",
+            "keperluan": "Pengujian akun individual",
+            "request_id": str(uuid.uuid4()),
+        }
+        manual = operator.post(
+            "/generate", data=form, headers={"X-CSRFToken": operator_csrf}
+        )
+        self.assertEqual(manual.status_code, 422)
+        self.assertIn("nomor_surat_custom", manual.get_json()["field_errors"])
+
+        form["nomor_surat_custom"] = ""
+        form["request_id"] = str(uuid.uuid4())
+        generated = operator.post(
+            "/generate", data=form, headers={"X-CSRFToken": operator_csrf}
+        )
+        self.assertEqual(generated.status_code, 200)
+        conn = sqlite3.connect(self.database)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                "SELECT * FROM riwayat_surat WHERE request_id = ?", (form["request_id"],)
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertIsNotNone(row)
+        assert row is not None
+        self.assertEqual(row["created_by"], "operator-satu")
+        self.assertEqual(row["created_by_role"], "operator")
+
+        denied = operator.post(
+            f"/api/history/{row['id']}/cancel",
+            data={"reason": "Operator mencoba membatalkan"},
+            headers={"X-CSRFToken": operator_csrf},
+        )
+        self.assertEqual(denied.status_code, 403)
+
+        reviewer = self.app.test_client()
+        reviewer_csrf = self.login(reviewer, "reviewer-satu", "password-reviewer")
+        cancelled = reviewer.post(
+            f"/api/history/{row['id']}/cancel",
+            data={"reason": "Dibatalkan oleh reviewer pengujian"},
+            headers={"X-CSRFToken": reviewer_csrf},
+        )
+        self.assertEqual(cancelled.status_code, 200)
+        self.assertEqual(cancelled.get_json()["cancelled_by"], "reviewer-satu")
 
 
 if __name__ == "__main__":

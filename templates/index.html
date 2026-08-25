@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id" data-theme="light">
+<html lang="id" data-theme="light" data-role="{{ role }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -21,6 +21,9 @@
           </div>
           <!-- Mobile Header Controls: reset button (only visible on mobile/tablet) -->
           <div class="mobile-header-controls">
+            {% if auth_enabled %}
+              <span class="mobile-account-label" title="Akun aktif">{{ username }}</span>
+            {% endif %}
             <button type="button" class="reset-link-btn mobile-reset-btn" id="mobileResetBtn" title="Reset Form" style="color: #cbd5e1; font-size: 13px; padding: 4px 6px; display: flex; align-items: center; gap: 6px;">
               <i class="fa-solid fa-arrow-rotate-left"></i> Reset
             </button>
@@ -85,9 +88,16 @@
               <div style="font-size: 13px; color: var(--text-secondary);">Sistem Informasi Persuratan Resmi SMAN 2 Wonosari (Izin, Cuti, Sakit, Penugasan, Dispensasi)</div>
             </div>
           </div>
-          <button type="button" class="btn-header-outline" id="helpBtn">
-            <i class="fa-solid fa-circle-question"></i> Bantuan & Panduan
-          </button>
+          <div class="dashboard-header-actions">
+            {% if auth_enabled %}
+              <span class="current-account-badge" title="Akun dan role aktif">
+                <i class="fa-solid fa-user-shield"></i> {{ username }} · {{ role | upper }}
+              </span>
+            {% endif %}
+            <button type="button" class="btn-header-outline" id="helpBtn">
+              <i class="fa-solid fa-circle-question"></i> Bantuan & Panduan
+            </button>
+          </div>
         </div>
 
         <!-- Executive Stats Summary Strip -->
@@ -401,10 +411,32 @@
         <button type="button" class="modal-close-btn" id="closeRiwayatModalBtn" aria-label="Tutup riwayat surat">&times;</button>
       </div>
       <div class="modal-body">
+        <div class="history-filters">
+          <label class="sr-only" for="historySearchInput">Cari riwayat surat</label>
+          <input type="search" id="historySearchInput" class="form-control" maxlength="100" placeholder="Cari nomor, nama, identitas, atau keperluan...">
+          <label class="sr-only" for="historyStatusFilter">Filter status riwayat</label>
+          <select id="historyStatusFilter" class="form-control">
+            <option value="">Semua status</option>
+            <option value="generated">Terbuat</option>
+            <option value="failed">Gagal</option>
+            <option value="rendering">Diproses</option>
+            <option value="cancelled">Dibatalkan</option>
+          </select>
+          <label class="sr-only" for="historyTypeFilter">Filter jenis surat</label>
+          <select id="historyTypeFilter" class="form-control">
+            <option value="">Semua jenis surat</option>
+            {% for key, info in jenis_surat.items() %}
+              <option value="{{ key }}">{{ info.label }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn-bottom-navy" id="historyRefreshBtn">Terapkan</button>
+          <button type="button" class="btn-bottom-cancel" id="historyExportBtn">Ekspor CSV</button>
+        </div>
         <div id="riwayatModalStatus" class="inline-status" role="status" aria-live="polite"></div>
         <div id="riwayatModalList" style="display: flex; flex-direction: column; gap: 10px; max-height: 460px; overflow-y: auto;">
           <!-- Populated by JS -->
         </div>
+        <div id="riwayatPagination" class="history-pagination" aria-label="Paginasi riwayat"></div>
       </div>
     </div>
   </div>

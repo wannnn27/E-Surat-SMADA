@@ -134,24 +134,17 @@ def validate_master_data(
 
 def _load_master_state(app: Flask) -> dict[str, Any]:
     data_dir = Path(app.config["DATA_DIR"])
-    fallback_dir = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "master"
     guru_records = app.config.get("GURU_RECORDS")
     murid_records = app.config.get("MURID_RECORDS")
     kode_records = app.config.get("KODE_ARSIP_RECORDS")
     if guru_records is None:
         guru_file = data_dir / "guru.json"
-        if not guru_file.is_file() and (fallback_dir / "guru.json").is_file():
-            guru_file = fallback_dir / "guru.json"
         guru_records = _read_json_list(guru_file, "guru")
     if murid_records is None:
         murid_file = data_dir / "murid.json"
-        if not murid_file.is_file() and (fallback_dir / "murid.json").is_file():
-            murid_file = fallback_dir / "murid.json"
         murid_records = _read_json_list(murid_file, "murid")
     if kode_records is None:
         kode_file = data_dir / "kode_arsip.json"
-        if not kode_file.is_file() and (fallback_dir / "kode_arsip.json").is_file():
-            kode_file = fallback_dir / "kode_arsip.json"
         kode_records = _read_json_list(kode_file, "kode arsip")
     return validate_master_data(
         guru_records,

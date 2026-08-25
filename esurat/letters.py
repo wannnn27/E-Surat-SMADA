@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Mapping
 
-from flask import current_app, jsonify, request
+from flask import current_app, jsonify, request, session
 
 from .config import (
     ARCHIVE_CODE_RE,
@@ -131,6 +131,12 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
         field_errors["nomor_surat_custom"] = (
             "gunakan 3-100 karakter berupa huruf, angka, spasi, titik, garis, atau slash"
         )
+    elif (
+        custom_number
+        and current_app.config.get("AUTH_ENABLED")
+        and session.get("role") != "admin"
+    ):
+        field_errors["nomor_surat_custom"] = "nomor manual hanya dapat diisi oleh admin"
 
     for protected in ("nama_kepsek", "nip_kepsek"):
         if _request_value(form_data, protected):

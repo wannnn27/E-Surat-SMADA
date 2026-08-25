@@ -1,8 +1,9 @@
 """Generate and audit one non-production DOCX for every active letter type.
 
 The script exercises the real Flask ``/generate`` route through ``create_app``
-and its test client. SQLite state lives in a temporary directory; generated
-artifacts are written to ``qa/generated`` (ignored by Git).
+and its test client. Master records are synthetic test fixtures and SQLite state
+lives in a temporary directory. Generated artifacts are written to
+``qa/generated`` (ignored by Git).
 
 Run from the repository root:
     python scripts/generate_qa_letters.py
@@ -25,6 +26,7 @@ import docx
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = ROOT / "qa" / "generated"
+FIXTURE_DATA_DIR = ROOT / "tests" / "fixtures" / "master"
 PROTECTED_DATABASES = (
     ROOT / "data" / "runtime" / "surat_smada.db",
     ROOT / "data" / "runtime" / "data_surat.db",
@@ -166,6 +168,7 @@ def main() -> None:
                 {
                     "TESTING": True,
                     "DATABASE": qa_database,
+                    "DATA_DIR": FIXTURE_DATA_DIR,
                     "INIT_DB_ON_CREATE": True,
                     "AUTH_ENABLED": False,
                     "BIND_HOST": "127.0.0.1",
