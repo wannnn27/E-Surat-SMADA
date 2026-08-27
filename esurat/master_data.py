@@ -137,6 +137,16 @@ def _load_master_state(app: Flask) -> dict[str, Any]:
     guru_records = app.config.get("GURU_RECORDS")
     murid_records = app.config.get("MURID_RECORDS")
     kode_records = app.config.get("KODE_ARSIP_RECORDS")
+    database = str(app.config.get("DATABASE") or "")
+    if (
+        guru_records is None
+        and murid_records is None
+        and kode_records is None
+        and database.startswith(("postgresql://", "postgres://"))
+    ):
+        from .database import load_master_records
+
+        guru_records, murid_records, kode_records = load_master_records(database)
     if guru_records is None:
         guru_file = data_dir / "guru.json"
         guru_records = _read_json_list(guru_file, "guru")

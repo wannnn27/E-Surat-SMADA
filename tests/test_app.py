@@ -483,16 +483,18 @@ class DataContractTests(unittest.TestCase):
                 }
             )
 
-    def test_vercel_deployment_is_rejected(self) -> None:
+    def test_vercel_deployment_uses_synthetic_demo_mode(self) -> None:
         with patch.dict(os.environ, {"VERCEL": "1"}):
-            with self.assertRaisesRegex(esurat.DataValidationError, "Vercel tidak didukung"):
-                esurat.create_app(
-                    {
-                        "TESTING": False,
-                        "DATA_DIR": FIXTURE_DATA_DIR,
-                        "DATABASE": Path(tempfile.gettempdir()) / "unused-esurat-vercel.sqlite3",
-                    }
-                )
+            demo_app = esurat.create_app(
+                {
+                    "TESTING": False,
+                    "DATA_DIR": FIXTURE_DATA_DIR,
+                    "DATABASE": Path(tempfile.gettempdir()) / "unused-esurat-vercel.sqlite3",
+                }
+            )
+        self.assertTrue(demo_app.config["VERCEL_DEMO"])
+        self.assertFalse(demo_app.config["AUTH_ENABLED"])
+        self.assertEqual(Path(demo_app.config["DATA_DIR"]), FIXTURE_DATA_DIR)
 
     def test_users_file_requires_an_active_account(self) -> None:
         with tempfile.TemporaryDirectory(prefix="esurat-inactive-users-") as temp_dir:

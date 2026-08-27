@@ -12,6 +12,7 @@ import secrets
 import sqlite3
 import threading
 import time
+import tempfile
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -37,7 +38,15 @@ from .config import (
     WIB,
     _env_bool,
 )
-from .database import _cancel_letter, _connect_db, _mark_letter_status, _reserve_letter, init_db
+from .database import (
+    _cancel_letter,
+    _connect_db,
+    _is_postgres,
+    _mark_letter_status,
+    _reserve_letter,
+    _sql,
+    init_db,
+)
 from .errors import DataValidationError, RequestValidationError
 from .letters import (
     _json_error,
@@ -79,7 +88,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     app.config.from_mapping(
         DATA_DIR=DATA_DIR,
         TEMPLATE_DIR=TEMPLATE_DIR,
-        DATABASE=DB_PATH,
+        DATABASE=os.getenv("DATABASE_URL", str(DB_PATH)),
         MAX_CONTENT_LENGTH=128 * 1024,
         NOW_FUNC=lambda: datetime.now(WIB),
         KEPSEK_NIP=os.getenv("ESURAT_KEPSEK_NIP", ""),
@@ -108,9 +117,21 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     if config:
         app.config.update(config)
 
-    if os.getenv("VERCEL") and not app.config.get("TESTING"):
-        raise DataValidationError(
-            "Deployment Vercel tidak didukung karena database dan penomoran surat memerlukan disk persisten"
+    vercel_demo = bool(
+        os.getenv("VERCEL")
+        and not app.config.get("TESTING")
+        and not str(app.config["DATABASE"]).startswith(("postgresql://", "postgres://"))
+    )
+    app.config["VERCEL_DEMO"] = vercel_demo
+    if vercel_demo:
+        app.config.update(
+            DATA_DIR=PROJECT_ROOT / "tests" / "fixtures" / "master",
+            DATABASE=Path(tempfile.gettempdir()) / "esurat_smada_demo.db",
+            AUTH_ENABLED=False,
+            AUTH_USERS_FILE="",
+            AUTH_USERNAME="",
+            AUTH_PASSWORD="",
+            AUTH_PASSWORD_HASH="",
         )
 
     auth_users = _load_auth_users(app.config)
@@ -120,7 +141,10 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         raise DataValidationError("AUTH_ENABLED memerlukan setidaknya satu akun aktif")
     if app.config.get("ALLOW_PUBLIC_UNAUTHENTICATED"):
         raise DataValidationError("Akses publik tanpa autentikasi tidak didukung")
-    stable_secret_required = bool(app.config["AUTH_ENABLED"])
+    if os.getenv("VERCEL") and not app.config.get("TESTING") and not vercel_demo:
+        if not app.config["AUTH_ENABLED"]:
+            raise DataValidationError("Autentikasi wajib diaktifkan pada deployment Vercel")
+    stable_secret_required = bool(app.config["AUTH_ENABLED"] or (os.getenv("VERCEL") and not vercel_demo))
     if stable_secret_required and not app.config.get("SECRET_KEY"):
         raise DataValidationError(
             "ESURAT_SECRET_KEY wajib diatur untuk autentikasi atau deployment publik/serverless"
@@ -129,7 +153,9 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         # Aman untuk satu proses local-only; deployment publik/auth wajib memberi secret stabil.
         app.config["SECRET_KEY"] = secrets.token_hex(32)
     if (
-        not app.config["AUTH_ENABLED"] and not _is_loopback_bind(str(app.config["BIND_HOST"]))
+        not app.config["AUTH_ENABLED"]
+        and not vercel_demo
+        and not _is_loopback_bind(str(app.config["BIND_HOST"]))
     ):
         raise DataValidationError("Aplikasi tanpa autentikasi hanya boleh bind ke loopback")
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,20}", str(app.config["NUMBER_SUFFIX"])):
@@ -158,7 +184,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             return
         with database_lock:
             if not app.extensions["database_initialized"]:
-                init_db(Path(app.config["DATABASE"]))
+                init_db(app.config["DATABASE"])
                 app.extensions["database_initialized"] = True
 
     app.extensions["ensure_database"] = ensure_database_initialized
@@ -178,7 +204,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             ):
                 session.clear()
         if not app.config["AUTH_ENABLED"]:
-            if not _is_loopback_address(request.remote_addr):
+            if not app.config["VERCEL_DEMO"] and not _is_loopback_address(request.remote_addr):
                 return _json_error("Akses tanpa autentikasi hanya diizinkan dari komputer lokal", 403)
         elif endpoint not in public_when_authenticated and not session.get("authenticated"):
             if request.method == "GET" and not request.path.startswith("/api/"):
@@ -266,6 +292,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             auth_enabled=bool(app.config["AUTH_ENABLED"]),
             username=session.get("username", ""),
             role=session.get("role", "") if app.config["AUTH_ENABLED"] else "admin",
+            demo_mode=bool(app.config["VERCEL_DEMO"]),
         )
 
     @app.get("/api/csrf")
@@ -367,7 +394,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     def healthz():
         problems: list[str] = []
         try:
-            conn = _connect_db(Path(app.config["DATABASE"]))
+            conn = _connect_db(app.config["DATABASE"])
             try:
                 conn.execute("SELECT 1").fetchone()
             finally:
@@ -494,18 +521,20 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         if page < 1 or not 1 <= per_page <= 100:
             return _json_error("Paginasi riwayat di luar batas", 400)
 
-        conn = _connect_db(Path(app.config["DATABASE"]))
+        database = app.config["DATABASE"]
+        postgres = _is_postgres(database)
+        conn = _connect_db(database)
         try:
             total = int(
-                conn.execute(f"SELECT COUNT(*) FROM riwayat_surat{where_sql}", params).fetchone()[0]
+                conn.execute(_sql(f"SELECT COUNT(*) FROM riwayat_surat{where_sql}", postgres), params).fetchone()[0]
             )
             rows = conn.execute(
-                f"""
+                _sql(f"""
                 SELECT id, created_at, updated_at, jenis_surat, jenis_key, nomor_surat,
                        nama_pemohon, id_pemohon, kategori, keperluan, status, request_id,
                        created_by, created_by_role, cancelled_at, cancelled_by, cancel_reason
                 FROM riwayat_surat{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?
-                """,
+                """, postgres),
                 [*params, per_page, (page - 1) * per_page],
             ).fetchall()
         finally:
@@ -523,15 +552,17 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     @app.get("/api/history/export.csv")
     def api_export_history():
         where_sql, params = history_filter_sql()
-        conn = _connect_db(Path(app.config["DATABASE"]))
+        database = app.config["DATABASE"]
+        postgres = _is_postgres(database)
+        conn = _connect_db(database)
         try:
             rows = conn.execute(
-                f"""
+                _sql(f"""
                 SELECT created_at, nomor_surat, jenis_surat, status, nama_pemohon,
                        id_pemohon, kategori, keperluan, created_by, created_by_role,
                        cancelled_at, cancelled_by, cancel_reason
                 FROM riwayat_surat{where_sql} ORDER BY id DESC
-                """,
+                """, postgres),
                 params,
             ).fetchall()
         finally:
