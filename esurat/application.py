@@ -292,7 +292,6 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             auth_enabled=bool(app.config["AUTH_ENABLED"]),
             username=session.get("username", ""),
             role=session.get("role", "") if app.config["AUTH_ENABLED"] else "admin",
-            demo_mode=bool(app.config["VERCEL_DEMO"]),
         )
 
     @app.get("/api/csrf")
