@@ -20,8 +20,9 @@ Ringkasnya:
   riwayat sudah tersedia;
 - data operasional tidak lagi berada dalam Git index kandidat ini dan CI akan
   menolak bila masuk kembali;
-- Vercel/serverless ditolak karena tidak menyediakan pola persistence yang aman
-  untuk SQLite dan penomoran;
+- Vercel tanpa PostgreSQL persisten ditolak; schema privat Supabase, migrasi data,
+  serta policy role runtime berhak minimum telah diverifikasi, sedangkan secret
+  dan deployment Vercel belum diselesaikan;
 - **history/remote GitHub dan deployment lama yang pernah memaparkan PII masih
   merupakan insiden P0 terbuka** sampai ditangani pemilik;
 - hanya 7 dari 25 dokumen bisnis yang aktif;
@@ -35,7 +36,7 @@ Ringkasnya:
 | Data di commit baru | `data/**` diabaikan kecuali README; tiga JSON produksi dikeluarkan dari index | Selesai lokal; belum membersihkan history/remote |
 | Guard kebocoran | `scripts/check_no_sensitive_tracking.py` dan gate CI | Selesai |
 | Penyimpanan | `ESURAT_DATA_ROOT`/override privat; startup gagal bila data/DB tidak tersedia | Selesai |
-| Serverless | `vercel.json` dihapus; environment Vercel ditolak saat startup | Selesai lokal; deployment eksternal harus dimatikan owner |
+| Serverless | Vercel tanpa PostgreSQL ditolak; fallback demo dihapus; Supabase memakai schema privat dan role runtime minimum | Migrasi remote/policy selesai; secret dan deployment Vercel belum diverifikasi |
 | Autentikasi | File akun privat; role admin/operator/reviewer; session 1–24 jam | Selesai |
 | Brute force | Batas login per alamat+username dalam satu proses | Selesai untuk arsitektur satu instance |
 | CSRF | Secret stabil diwajibkan saat auth; browser refresh token dan retry satu kali | Selesai |
@@ -158,8 +159,9 @@ owner.
 - `/healthz` dibatasi monitor/admin;
 - backup terenkripsi dan terpisah.
 
-Vercel, container ephemeral tanpa persistent volume, deployment multi-instance,
-dan berbagi satu SQLite melalui network share tidak disetujui.
+Vercel/container ephemeral tanpa PostgreSQL persisten dan berbagi satu SQLite
+melalui network share tidak disetujui. Deployment multi-instance dengan
+PostgreSQL tetap memerlukan uji concurrency, autentikasi, backup, dan UAT.
 
 ## Over-engineering yang sebaiknya dihindari
 
@@ -179,12 +181,12 @@ berguna, tetapi bukan alasan menunda penutupan P0/P1.
 
 ## Bukti teknis kandidat
 
-Pada working tree 25 Agustus 2026:
+Pada working tree 29 Agustus 2026:
 
-- 25 automated test lulus pada Python lokal;
+- 29 automated test lulus pada Python lokal;
 - test mencakup 7 generate, validasi, idempotency, concurrency, render failure,
   CSRF, auth, rate limit, role, aktor, pembatalan, filter/pagination/CSV, health,
-  dan penolakan Vercel;
+  penolakan Vercel tanpa PostgreSQL, private schema/RLS, serta konfigurasi pooler;
 - error log pada test render failure adalah kegagalan yang sengaja disimulasikan;
 - pemeriksaan CI didefinisikan untuk Python 3.10 dan 3.14 dengan data sintetis.
 

@@ -8,7 +8,8 @@ pimpinan sekolah. Jangan menandai kotak tanpa bukti.
 
 - [x] Data operasional dikeluarkan dari Git index kandidat.
 - [x] CI menolak data/database/workbook operasional yang terlacak.
-- [x] Vercel/serverless ditolak dan konfigurasi Vercel dihapus.
+- [x] Vercel tanpa PostgreSQL persisten ditolak; fallback database demo dihapus.
+- [x] Dukungan Supabase PostgreSQL memakai schema privat, RLS, dan counter atomik.
 - [x] Lokasi data eksternal dan fail-fast persistence tersedia.
 - [x] Akun individual/role, audit aktor, login throttling, dan session stabil.
 - [x] Pemulihan CSRF satu kali di browser.
@@ -53,6 +54,25 @@ pimpinan sekolah. Jangan menandai kotak tanpa bukti.
 - [ ] Service otomatis start/restart memakai akun OS berprivilege minimum.
 - [ ] Rotasi log, monitoring kapasitas disk, dan alert service/backup aktif.
 
+Untuk profil cloud/Supabase, ganti pemeriksaan server lokal di atas dengan bukti
+ekuivalen dan lengkapi seluruh item berikut:
+
+- [ ] Project Supabase khusus E-Surat, region, owner, plan, retensi, dan billing
+  disetujui sekolah.
+- [x] Backup lokal pra-migrasi dibuat dan lolos `verify_backup.py` (29 Agustus 2026).
+- [x] Dry-run serta migrasi master, riwayat, dan counter lulus pada target kosong
+  E-Surat-SMADA (29 Agustus 2026: 50 guru, 750 murid, 146 kode, 9 riwayat,
+  dan 3 counter).
+- [ ] `DATABASE_URL` Transaction Pooler hanya tersimpan di secret Vercel.
+- [ ] Runtime memakai role `esurat_runtime` berhak minimum; bukan role pemilik
+  `postgres`, `service_role`, `authenticated`, atau `anon`.
+- [ ] Data API dimatikan; schema `esurat` tidak diekspos.
+- [x] RLS aktif dan role `anon`, `authenticated`, `service_role` tidak memiliki
+  privilege pada tabel operasional.
+- [ ] MCP writable dicabut atau diubah read-only sebelum PII produksi dipakai.
+- [ ] Minimal akun individual admin/operator/reviewer tersedia; akun bootstrap
+  tunggal tidak dipakai untuk operasi harian.
+
 ## D. Verifikasi teknis kandidat
 
 Catat tanggal, pelaksana, commit/tag, Python, dan output pada tiket/berita acara
@@ -71,11 +91,13 @@ node --check static/app.js
 - [ ] Semua perintah lulus pada artefak yang benar-benar akan dideploy.
 - [ ] Run CI pada remote bersih lulus untuk Python 3.10 dan 3.14.
 - [ ] Startup tanpa master/database persisten gagal dengan pesan yang benar.
-- [ ] Startup Vercel/serverless gagal sesuai guard.
+- [ ] Startup Vercel tanpa PostgreSQL gagal; startup dengan Supabase dan secret
+  lengkap lulus.
 - [ ] Login salah/rate limit, logout, session expiry, dan retry CSRF diuji browser.
 - [ ] Operator tidak dapat memakai nomor manual atau membatalkan.
 - [ ] Admin dapat nomor manual; reviewer/admin dapat membatalkan dengan alasan.
-- [ ] Filter, pagination, dan CSV cocok dengan SQLite/register.
+- [ ] Filter, pagination, CSV, idempotensi, dan concurrency cocok dengan database
+  target serta register.
 
 ## E. UAT Tata Usaha dan dokumen
 
@@ -98,7 +120,8 @@ node --check static/app.js
 - [ ] RPO/RTO dan retensi disahkan.
 - [ ] Backup harian terenkripsi dijadwalkan ke media terpisah.
 - [ ] Manifest dan SHA-256 diverifikasi.
-- [ ] Restore master + SQLite dilakukan di lingkungan terisolasi.
+- [ ] Restore master + database aktif (SQLite/PostgreSQL) dilakukan di lingkungan
+  terisolasi.
 - [ ] Nomor setelah restore direkonsiliasi dengan register/surat yang telah
   terbit; tidak ada nomor terpakai ulang.
 - [ ] SOP nomor manual, generate gagal, pembatalan, koreksi/pengganti, dan

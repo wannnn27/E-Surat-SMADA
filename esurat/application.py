@@ -12,7 +12,6 @@ import secrets
 import sqlite3
 import threading
 import time
-import tempfile
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -39,13 +38,17 @@ from .config import (
     _env_bool,
 )
 from .database import (
+    DATABASE_ERRORS,
+    POSTGRES_ERROR,
     _cancel_letter,
     _connect_db,
     _is_postgres,
     _mark_letter_status,
     _reserve_letter,
     _sql,
+    _table,
     init_db,
+    verify_postgres_runtime,
 )
 from .errors import DataValidationError, RequestValidationError
 from .letters import (
@@ -112,26 +115,17 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         SESSION_REFRESH_EACH_REQUEST=True,
         LOGIN_MAX_ATTEMPTS=_environment_integer("ESURAT_LOGIN_MAX_ATTEMPTS", 5),
         LOGIN_WINDOW_SECONDS=_environment_integer("ESURAT_LOGIN_WINDOW_SECONDS", 900),
+        AUTO_MIGRATE_DATABASE=_env_bool("ESURAT_AUTO_MIGRATE_DATABASE", False),
         INIT_DB_ON_CREATE=False,
     )
     if config:
         app.config.update(config)
 
-    vercel_demo = bool(
-        os.getenv("VERCEL")
-        and not app.config.get("TESTING")
-        and not str(app.config["DATABASE"]).startswith(("postgresql://", "postgres://"))
-    )
-    app.config["VERCEL_DEMO"] = vercel_demo
-    if vercel_demo:
-        app.config.update(
-            DATA_DIR=PROJECT_ROOT / "tests" / "fixtures" / "master",
-            DATABASE=Path(tempfile.gettempdir()) / "esurat_smada_demo.db",
-            AUTH_ENABLED=False,
-            AUTH_USERS_FILE="",
-            AUTH_USERNAME="",
-            AUTH_PASSWORD="",
-            AUTH_PASSWORD_HASH="",
+    is_vercel = bool(os.getenv("VERCEL") and not app.config.get("TESTING"))
+    app.config["VERCEL_DEMO"] = False
+    if is_vercel and not _is_postgres(app.config["DATABASE"]):
+        raise DataValidationError(
+            "DATABASE_URL PostgreSQL wajib diatur pada Vercel; database demo sementara tidak didukung"
         )
 
     auth_users = _load_auth_users(app.config)
@@ -141,10 +135,9 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         raise DataValidationError("AUTH_ENABLED memerlukan setidaknya satu akun aktif")
     if app.config.get("ALLOW_PUBLIC_UNAUTHENTICATED"):
         raise DataValidationError("Akses publik tanpa autentikasi tidak didukung")
-    if os.getenv("VERCEL") and not app.config.get("TESTING") and not vercel_demo:
-        if not app.config["AUTH_ENABLED"]:
-            raise DataValidationError("Autentikasi wajib diaktifkan pada deployment Vercel")
-    stable_secret_required = bool(app.config["AUTH_ENABLED"] or (os.getenv("VERCEL") and not vercel_demo))
+    if is_vercel and not app.config["AUTH_ENABLED"]:
+        raise DataValidationError("Autentikasi wajib diaktifkan pada deployment Vercel")
+    stable_secret_required = bool(app.config["AUTH_ENABLED"] or is_vercel)
     if stable_secret_required and not app.config.get("SECRET_KEY"):
         raise DataValidationError(
             "ESURAT_SECRET_KEY wajib diatur untuk autentikasi atau deployment publik/serverless"
@@ -154,7 +147,6 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         app.config["SECRET_KEY"] = secrets.token_hex(32)
     if (
         not app.config["AUTH_ENABLED"]
-        and not vercel_demo
         and not _is_loopback_bind(str(app.config["BIND_HOST"]))
     ):
         raise DataValidationError("Aplikasi tanpa autentikasi hanya boleh bind ke loopback")
@@ -184,7 +176,11 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             return
         with database_lock:
             if not app.extensions["database_initialized"]:
-                init_db(app.config["DATABASE"])
+                database = app.config["DATABASE"]
+                if _is_postgres(database) and not app.config["AUTO_MIGRATE_DATABASE"]:
+                    verify_postgres_runtime(str(database))
+                else:
+                    init_db(database)
                 app.extensions["database_initialized"] = True
 
     app.extensions["ensure_database"] = ensure_database_initialized
@@ -204,7 +200,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             ):
                 session.clear()
         if not app.config["AUTH_ENABLED"]:
-            if not app.config["VERCEL_DEMO"] and not _is_loopback_address(request.remote_addr):
+            if not _is_loopback_address(request.remote_addr):
                 return _json_error("Akses tanpa autentikasi hanya diizinkan dari komputer lokal", 403)
         elif endpoint not in public_when_authenticated and not session.get("authenticated"):
             if request.method == "GET" and not request.path.startswith("/api/"):
@@ -259,9 +255,12 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         return _json_error("Ukuran request melebihi batas aplikasi", 413)
 
     @app.errorhandler(sqlite3.Error)
-    def handle_database_error(exc: sqlite3.Error):
-        app.logger.exception("Kesalahan database SQLite", exc_info=exc)
-        return _json_error("Database sementara tidak dapat digunakan", 503)
+    def handle_database_error(exc: Exception):
+        app.logger.exception("Kesalahan database", exc_info=exc)
+        return _json_error("Database tidak dapat digunakan sementara", 503)
+
+    if POSTGRES_ERROR is not None:
+        app.register_error_handler(POSTGRES_ERROR, handle_database_error)
 
     @app.errorhandler(HTTPException)
     def handle_http_error(exc: HTTPException):
@@ -398,7 +397,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 conn.execute("SELECT 1").fetchone()
             finally:
                 conn.close()
-        except sqlite3.Error:
+        except DATABASE_ERRORS:
             problems.append("database")
         if len(app.extensions["template_hashes"]) != len(JENIS_SURAT):
             problems.append("templates")
@@ -522,17 +521,21 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
 
         database = app.config["DATABASE"]
         postgres = _is_postgres(database)
+        history_table = _table("riwayat_surat", postgres)
         conn = _connect_db(database)
         try:
             total = int(
-                conn.execute(_sql(f"SELECT COUNT(*) FROM riwayat_surat{where_sql}", postgres), params).fetchone()[0]
+                conn.execute(
+                    _sql(f"SELECT COUNT(*) FROM {history_table}{where_sql}", postgres),
+                    params,
+                ).fetchone()[0]
             )
             rows = conn.execute(
                 _sql(f"""
                 SELECT id, created_at, updated_at, jenis_surat, jenis_key, nomor_surat,
                        nama_pemohon, id_pemohon, kategori, keperluan, status, request_id,
                        created_by, created_by_role, cancelled_at, cancelled_by, cancel_reason
-                FROM riwayat_surat{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?
+                FROM {history_table}{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?
                 """, postgres),
                 [*params, per_page, (page - 1) * per_page],
             ).fetchall()
@@ -553,6 +556,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         where_sql, params = history_filter_sql()
         database = app.config["DATABASE"]
         postgres = _is_postgres(database)
+        history_table = _table("riwayat_surat", postgres)
         conn = _connect_db(database)
         try:
             rows = conn.execute(
@@ -560,7 +564,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 SELECT created_at, nomor_surat, jenis_surat, status, nama_pemohon,
                        id_pemohon, kategori, keperluan, created_by, created_by_role,
                        cancelled_at, cancelled_by, cancel_reason
-                FROM riwayat_surat{where_sql} ORDER BY id DESC
+                FROM {history_table}{where_sql} ORDER BY id DESC
                 """, postgres),
                 params,
             ).fetchall()
@@ -659,7 +663,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             if should_mark:
                 try:
                     _mark_letter_status(reservation["id"], "failed", str(exc))
-                except sqlite3.Error:
+                except DATABASE_ERRORS:
                     app.logger.exception("Gagal mencatat status render failed")
             app.logger.exception("Gagal merender template %s", validated["jenis"])
             return _json_error("Dokumen gagal dirender; tidak ada surat sukses yang dicatat", 500)

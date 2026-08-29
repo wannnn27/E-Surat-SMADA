@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
 from esurat.config import DATA_DIR
-from esurat.database import _connect_db, init_db
+from esurat.database import _connect_db, _table, init_db
 from esurat.master_data import validate_master_data
 
 
@@ -36,8 +41,8 @@ def main() -> None:
     try:
         for kind, payload in (("guru", guru), ("murid", murid), ("kode_arsip", kode)):
             conn.execute(
-                """
-                INSERT INTO master_data(kind, payload, updated_at)
+                f"""
+                INSERT INTO {_table('master_data', True)}(kind, payload, updated_at)
                 VALUES (%s, %s, CURRENT_TIMESTAMP)
                 ON CONFLICT (kind) DO UPDATE
                 SET payload = EXCLUDED.payload, updated_at = CURRENT_TIMESTAMP

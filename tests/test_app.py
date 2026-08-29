@@ -483,18 +483,43 @@ class DataContractTests(unittest.TestCase):
                 }
             )
 
-    def test_vercel_deployment_uses_synthetic_demo_mode(self) -> None:
+    def test_vercel_deployment_requires_persistent_postgres(self) -> None:
         with patch.dict(os.environ, {"VERCEL": "1"}):
-            demo_app = esurat.create_app(
+            with self.assertRaisesRegex(esurat.DataValidationError, "DATABASE_URL PostgreSQL"):
+                esurat.create_app(
+                    {
+                        "TESTING": False,
+                        "DATA_DIR": FIXTURE_DATA_DIR,
+                        "DATABASE": Path(tempfile.gettempdir()) / "temporary-vercel.sqlite3",
+                    }
+                )
+
+    def test_vercel_runtime_verifies_schema_without_running_migration(self) -> None:
+        state = {"guru": [], "murid": [], "kode_arsip": [], "kepsek": {}}
+        with (
+            patch.dict(os.environ, {"VERCEL": "1"}),
+            patch.object(application_module, "_load_master_state", return_value=state),
+            patch.object(application_module, "verify_postgres_runtime") as verify_runtime,
+            patch.object(application_module, "init_db") as migrate_database,
+        ):
+            deployed_app = esurat.create_app(
                 {
                     "TESTING": False,
-                    "DATA_DIR": FIXTURE_DATA_DIR,
-                    "DATABASE": Path(tempfile.gettempdir()) / "unused-esurat-vercel.sqlite3",
+                    "DATABASE": "postgresql://example.invalid/postgres?sslmode=require",
+                    "AUTH_ENABLED": True,
+                    "AUTH_USERNAME": "admin-tu",
+                    "AUTH_PASSWORD": "",
+                    "AUTH_PASSWORD_HASH": generate_password_hash("password-pengujian"),
+                    "SECRET_KEY": "stable-production-test-secret",
+                    "AUTO_MIGRATE_DATABASE": False,
                 }
             )
-        self.assertTrue(demo_app.config["VERCEL_DEMO"])
-        self.assertFalse(demo_app.config["AUTH_ENABLED"])
-        self.assertEqual(Path(demo_app.config["DATA_DIR"]), FIXTURE_DATA_DIR)
+            deployed_app.extensions["ensure_database"]()
+
+        verify_runtime.assert_called_once_with(
+            "postgresql://example.invalid/postgres?sslmode=require"
+        )
+        migrate_database.assert_not_called()
 
     def test_users_file_requires_an_active_account(self) -> None:
         with tempfile.TemporaryDirectory(prefix="esurat-inactive-users-") as temp_dir:

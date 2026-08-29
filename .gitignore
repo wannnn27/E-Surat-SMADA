@@ -21,3 +21,7 @@ Thumbs.db
 /backups/
 .coverage
 .pytest_cache/
+
+.vercel/
+.env*
+!.env.example

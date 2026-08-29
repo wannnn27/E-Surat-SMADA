@@ -37,7 +37,7 @@ Kontrol yang tersedia pada kandidat ini:
   `reviewer`;
 - session 8 jam, login throttling, CSRF, cookie aman, dan retry token CSRF satu
   kali di browser;
-- nomor otomatis unik/idempoten pada satu instance SQLite;
+- nomor otomatis unik/idempoten pada satu instance SQLite atau PostgreSQL;
 - nomor manual hanya untuk admin;
 - audit operator, pencarian/filter/pagination riwayat, pembatalan bernomor, dan
   ekspor CSV;
@@ -47,18 +47,17 @@ Kontrol yang tersedia pada kandidat ini:
 
 ## Arsitektur yang didukung
 
-Aplikasi didesain untuk **satu proses aplikasi dan satu database SQLite pada disk
-persisten**. Dua profil yang didukung:
+Aplikasi mendukung dua profil penyimpanan:
 
 ```text
-Satu PC: browser --> http://127.0.0.1:5000
-LAN: browser TU --> HTTPS :443 --> Caddy/Nginx/IIS --> 127.0.0.1:5000
+Lokal/LAN: browser --> HTTPS/reverse proxy --> satu proses Flask --> SQLite persisten
+Cloud: browser --> HTTPS Vercel --> Flask Function --> Supabase PostgreSQL
 ```
 
-Vercel/serverless tidak didukung karena filesystem-nya tidak menjamin database
-dan counter nomor persisten. Aplikasi sekarang menolak startup di Vercel agar
-tidak kehilangan riwayat atau menerbitkan nomor yang salah. Backend port 5000
-jangan dibuka langsung ke LAN/Internet.
+SQLite tetap ditujukan untuk satu proses dan tidak boleh ditempatkan pada network
+share. Vercel hanya didukung bila `DATABASE_URL` menunjuk PostgreSQL persisten dan
+autentikasi serta secret stabil aktif. Tanpa PostgreSQL aplikasi menolak startup;
+fallback database demo/sementara sudah dihapus.
 
 ## Instalasi pengembangan
 
@@ -100,12 +99,71 @@ Nama file workbook default dijelaskan oleh output skrip import. Gunakan
 `ESURAT_SOURCE_DIR`, `ESURAT_DATA_DIR`, dan `ESURAT_DB_PATH` tersedia untuk tata
 letak nonstandar.
 
-## Akun dan secret
+## Migrasi ke Supabase PostgreSQL
 
-Buat hash untuk setiap pengguna pada mesin admin:
+Gunakan **Transaction Pooler** Supabase (port `6543`) untuk runtime Vercel. Simpan
+connection string sebagai secret `DATABASE_URL`; jangan menaruh password database
+di `.env`, Git, screenshot, atau chat. Driver menonaktifkan named prepared
+statements agar kompatibel dengan transaction pooling. Tambahkan
+`sslmode=require` pada URI dan pertahankan `ESURAT_AUTO_MIGRATE_DATABASE=0` di
+runtime; cold start hanya memverifikasi schema dan tidak menjalankan DDL.
+
+Sebelum migrasi, buat dan verifikasi backup lokal. Script migrasi hanya menerima
+target kosong dan menulis master, riwayat, serta seed counter dalam satu transaksi:
 
 ```powershell
-python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash(input('Password: ')))"
+python scripts/backup_data.py --include-excel
+python scripts/verify_backup.py <folder-backup>
+python scripts/migrate_sqlite_to_postgres.py --dry-run
+$env:DATABASE_URL='<transaction-pooler-secret>'
+python scripts/migrate_sqlite_to_postgres.py
+Remove-Item Env:DATABASE_URL
+```
+
+Tabel berada di schema privat `esurat`, RLS aktif, dan akses Data API untuk
+`anon`, `authenticated`, serta `service_role` dicabut. Aplikasi tidak memakai
+REST/GraphQL Supabase; Data API sebaiknya dinonaktifkan pada project ini.
+
+Migrasi remote awal ke project **E-Surat-SMADA** selesai diverifikasi pada
+29 Agustus 2026: 50 guru, 750 murid, 146 kode arsip, 9 riwayat, dan 3 seed
+counter. Uji rollback memastikan counter atomik dan indeks nomor baru bekerja;
+data legacy yang sudah terduplikasi tetap dipertahankan sebagai arsip.
+
+Environment minimum Vercel selain `DATABASE_URL`:
+
+```text
+ESURAT_SECRET_KEY=<acak-panjang-dan-stabil>
+ESURAT_USERNAME=<akun-bootstrap>
+ESURAT_PASSWORD_HASH=<hash-werkzeug>
+ESURAT_DEFAULT_ROLE=admin
+ESURAT_HTTPS=1
+ESURAT_NUMBER_SUFFIX=SMADA
+ESURAT_AUTO_MIGRATE_DATABASE=0
+```
+
+Kredensial bootstrap tunggal hanya untuk setup awal. Akun individual operator,
+reviewer, dan admin tetap menjadi gate sebelum pilot TU.
+
+Untuk provisioning awal tanpa menyalin secret ke chat atau command history,
+hubungkan folder ke project Vercel lalu jalankan prompt lokal berikut. Script
+mengaktifkan role `esurat_runtime` berhak minimum, menguji read/write dengan
+rollback, dan menyimpan seluruh environment hanya untuk Production:
+
+```powershell
+python scripts/provision_vercel.py --project-ref <project-ref> --region <region>
+```
+
+Jalankan migrasi `supabase/migrations/20260829174500_create_esurat_runtime_role.sql`
+sebelum provisioning. Password database Supabase hanya dipakai selama proses dan
+tidak disimpan; password login admin dipilih oleh administrator pada prompt lokal.
+
+## Akun dan secret
+
+Buat hash untuk setiap pengguna pada mesin admin. Script memakai input password
+tersembunyi dan konfirmasi sehingga plaintext tidak masuk command history:
+
+```powershell
+python scripts/generate_password_hash.py
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 

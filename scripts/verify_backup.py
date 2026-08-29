@@ -82,7 +82,13 @@ def verify_backup(backup_dir: Path) -> dict[str, Any]:
         raise BackupVerificationError("Backup tidak memiliki database SQLite")
 
     for database_path in database_paths:
-        connection = sqlite3.connect(f"{database_path.as_uri()}?mode=ro", uri=True)
+        # ``mode=ro`` may still create ``-wal``/``-shm`` sidecars when the
+        # database header uses WAL mode.  Backups must remain byte-for-byte
+        # immutable while being verified, so disable all auxiliary writes.
+        connection = sqlite3.connect(
+            f"{database_path.as_uri()}?mode=ro&immutable=1",
+            uri=True,
+        )
         try:
             result = connection.execute("PRAGMA quick_check").fetchone()
         finally:

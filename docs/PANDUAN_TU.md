@@ -1,6 +1,6 @@
 # Panduan Operasional E-Surat SMADA
 
-Panduan ini ditujukan kepada operator Tata Usaha dan administrator teknis SMAN 2 Wonosari. Versi kandidat: 25 Agustus 2026.
+Panduan ini ditujukan kepada operator Tata Usaha dan administrator teknis SMAN 2 Wonosari. Versi kandidat: 29 Agustus 2026.
 
 ## Batas penggunaan
 
@@ -165,11 +165,11 @@ Catat insiden dengan waktu, operator, jenis surat, nomor/request ID bila ada, sc
 
 Aplikasi membaca environment proses dan **tidak otomatis membaca `.env`**. Simpan konfigurasi pada mekanisme secret/service manager yang hanya dapat dibaca admin. Contoh variabel ada di [../.env.example](../.env.example).
 
-Untuk satu komputer lokal, biarkan `ESURAT_HOST=127.0.0.1` dan jangan aktifkan akses jarak jauh. Untuk LAN, pertahankan backend di `127.0.0.1:5000`, gunakan `ESURAT_USERS_FILE` dengan akun individual, secret stabil, `ESURAT_HTTPS=1`, dan reverse proxy HTTPS pada port 443. Firewall tidak boleh membuka port 5000. Batasi `/healthz` di proxy/firewall. Vercel/serverless tidak didukung.
+Untuk satu komputer lokal, biarkan `ESURAT_HOST=127.0.0.1` dan jangan aktifkan akses jarak jauh. Untuk LAN, pertahankan backend di `127.0.0.1:5000`, gunakan `ESURAT_USERS_FILE` dengan akun individual, secret stabil, `ESURAT_HTTPS=1`, dan reverse proxy HTTPS pada port 443. Firewall tidak boleh membuka port 5000. Batasi `/healthz` di proxy/firewall. Vercel hanya boleh dipakai dengan Supabase PostgreSQL persisten, autentikasi, dan secret stabil; tanpa `DATABASE_URL` aplikasi wajib gagal startup.
 
 Letakkan root operasional di luar checkout Git dan set `ESURAT_DATA_ROOT`. Struktur yang direkomendasikan adalah `source/`, `master/`, `runtime/`, dan `config/users.json`. Lihat [README](../README.md#provision-data-secara-privat).
 
-Jangan menjalankan lebih dari satu proses/instance aplikasi pada database SQLite yang sama. Konfigurasi Waitress saat ini ditujukan untuk satu proses dengan beberapa thread, bukan deployment multi-instance.
+Jangan menjalankan lebih dari satu proses/instance aplikasi pada database SQLite yang sama. Deployment multi-instance hanya menggunakan PostgreSQL dan tetap harus lulus uji concurrency nomor surat.
 
 ### Import data master
 
