@@ -1,6 +1,6 @@
 # E-Surat SMADA
 
-E-Surat SMADA adalah aplikasi internal Tata Usaha untuk membuat DOCX surat dari
+E-Surat SMADA adalah aplikasi internal Tata Usaha untuk membuat surat Word (DOCX) dan PDF dari
 data master resmi. Aplikasi memvalidasi identitas, mengalokasikan nomor secara
 transaksional, mencatat aktor, dan menyediakan riwayat yang dapat dicari,
 dibatalkan tanpa memakai ulang nomor, serta diekspor ke CSV.
@@ -29,8 +29,8 @@ menambahkan template DOCX sendiri dari dashboard `/admin`:
 | Siswa (1–3 siswa/surat) | Dispensasi kegiatan | Kepala Sekolah |
 
 Delapan belas DOCX di `templates_surat/legacy/` belum aktif dan tidak boleh
-dianggap siap generate. Ringkasan layar juga bukan pratinjau visual Word; DOCX
-tetap wajib diperiksa sebelum diterbitkan.
+dianggap siap generate. Ringkasan layar juga bukan pratinjau visual dokumen;
+hasil Word atau PDF tetap wajib diperiksa sebelum diterbitkan.
 
 Kontrol yang tersedia pada kandidat ini:
 
@@ -43,6 +43,7 @@ Kontrol yang tersedia pada kandidat ini:
 - audit aktor, pencarian/filter/pagination riwayat admin, pembatalan bernomor,
   ekspor CSV, dan template tambahan persisten di database privat;
 - fail-fast bila data/template/database persisten tidak tersedia;
+- unduhan Word dan PDF memakai template, nomor surat, serta entri riwayat yang sama;
 - CI dengan fixture sintetis dan pemeriksaan agar data operasional tidak masuk
   kembali ke Git.
 

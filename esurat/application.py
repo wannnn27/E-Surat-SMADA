@@ -65,6 +65,7 @@ from .letters import (
     get_surat_context,
 )
 from .master_data import _load_master_state, _validate_templates, validate_master_data
+from .pdf_rendering import render_pdf_from_docx
 from .registry import JENIS_SURAT
 from .rendering import _check_rendered_docx, _render_letter
 from .security import (
@@ -754,12 +755,23 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
 
     @app.post("/generate")
     def generate():
+        output_format = _normalize_text(request.form.get("output_format", "docx")).casefold()
+        if output_format not in {"docx", "pdf"}:
+            return _json_error(
+                "Format dokumen tidak didukung",
+                422,
+                {"output_format": "pilih format docx atau pdf"},
+            )
         validated = _validate_request(request.form, preview=False)
         reservation = _reserve_letter(validated)
         validated["context"]["nomor_surat"] = reservation["number"]
         should_mark = reservation["action"] != "generated"
         try:
-            buf = _render_letter(validated, reservation["number"])
+            docx_buffer = _render_letter(validated, reservation["number"])
+            if output_format == "pdf":
+                buf = render_pdf_from_docx(docx_buffer)
+            else:
+                buf = docx_buffer
         except Exception as exc:
             if should_mark:
                 try:
@@ -767,6 +779,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 except DATABASE_ERRORS:
                     app.logger.exception("Gagal mencatat status render failed")
             app.logger.exception("Gagal merender template %s", validated["jenis"])
+            if output_format == "pdf":
+                return _json_error("PDF gagal dibuat; silakan coba unduh format Word", 500)
             return _json_error("Dokumen gagal dirender; tidak ada surat sukses yang dicatat", 500)
 
         if should_mark:
@@ -775,15 +789,22 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         safe_name = secure_filename(validated["person"]["nama"]) or "personel"
         if len(validated["people"]) > 1:
             safe_name = f"{safe_name}-dan-{len(validated['people']) - 1}-siswa"
-        filename = f"{validated['jenis']}_{safe_name}.docx"[:180]
+        extension = ".pdf" if output_format == "pdf" else ".docx"
+        filename = f"{validated['jenis']}_{safe_name}"[: 180 - len(extension)] + extension
+        mimetype = (
+            "application/pdf"
+            if output_format == "pdf"
+            else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
         response = send_file(
             buf,
             as_attachment=True,
             download_name=filename,
-            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            mimetype=mimetype,
         )
         response.headers["X-Letter-Number"] = reservation["number"]
         response.headers["X-Request-ID"] = reservation["request_id"]
+        response.headers["X-Document-Format"] = output_format
         return response
 
     return app

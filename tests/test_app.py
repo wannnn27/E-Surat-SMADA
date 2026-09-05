@@ -68,6 +68,8 @@ class BackendIntegrationTests(unittest.TestCase):
     def response_message(response) -> str:
         if response.mimetype == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             return f"DOCX response ({len(response.data)} bytes)"
+        if response.mimetype == "application/pdf":
+            return f"PDF response ({len(response.data)} bytes)"
         return response.get_data(as_text=True)
 
     def person_for(self, jenis: str) -> dict[str, str]:
@@ -238,6 +240,7 @@ class BackendIntegrationTests(unittest.TestCase):
                     generated.mimetype,
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 )
+                self.assertEqual(generated.headers["X-Document-Format"], "docx")
                 number = generated.headers.get("X-Letter-Number", "")
                 self.assertRegex(
                     number,
@@ -344,6 +347,17 @@ class BackendIntegrationTests(unittest.TestCase):
         second = self.post("/generate", form)
         self.assertEqual(second.status_code, 200, self.response_message(second))
         self.assertEqual(second.headers["X-Letter-Number"], first_number)
+
+        pdf_form = dict(form)
+        pdf_form["output_format"] = "pdf"
+        pdf = self.post("/generate", pdf_form)
+        self.assertEqual(pdf.status_code, 200, self.response_message(pdf))
+        self.assertEqual(pdf.mimetype, "application/pdf")
+        self.assertEqual(pdf.headers["X-Document-Format"], "pdf")
+        self.assertEqual(pdf.headers["X-Letter-Number"], first_number)
+        self.assertIn(".pdf", pdf.headers["Content-Disposition"])
+        self.assertTrue(pdf.data.startswith(b"%PDF-"))
+        self.assertIn(b"%%EOF", pdf.data[-1024:])
         conn = sqlite3.connect(self.database)
         try:
             count = conn.execute(
@@ -358,6 +372,13 @@ class BackendIntegrationTests(unittest.TestCase):
         conflict = self.post("/generate", changed)
         self.assertEqual(conflict.status_code, 409)
         self.assertIn("request_id", conflict.get_json()["field_errors"])
+
+        invalid_format = self.valid_form("izin_guru")
+        invalid_format["output_format"] = "exe"
+        invalid_response = self.post("/generate", invalid_format)
+        self.assertEqual(invalid_response.status_code, 422)
+        self.assertIn("output_format", invalid_response.get_json()["field_errors"])
+        self.assertIsNone(self.history_for(invalid_format["request_id"]))
 
     def test_09_public_user_cannot_use_manual_number(self) -> None:
         manual = "800.1.11/900/SMADA/2026"
@@ -477,6 +498,15 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(row["nama_pemohon"], ", ".join(item["nama"] for item in students))
         self.assertEqual(row["id_pemohon"], ", ".join(item["nis"] for item in students))
 
+        pdf_form = MultiDict(form)
+        pdf_form.setlist("student_ids", student_ids)
+        pdf_form["output_format"] = "pdf"
+        pdf = self.post("/generate", pdf_form)
+        self.assertEqual(pdf.status_code, 200, self.response_message(pdf))
+        self.assertEqual(pdf.mimetype, "application/pdf")
+        self.assertEqual(pdf.headers["X-Letter-Number"], generated.headers["X-Letter-Number"])
+        self.assertIn("dan-2-siswa.pdf", pdf.headers["Content-Disposition"])
+
         duplicate_base = self.valid_form("dispensasi_murid")
         duplicate = MultiDict(
             [*duplicate_base.items(), ("student_ids", students[0]["nis"]), ("student_ids", students[0]["nis"])]
@@ -492,6 +522,22 @@ class BackendIntegrationTests(unittest.TestCase):
         too_many_response = self.post("/api/preview_render", too_many)
         self.assertEqual(too_many_response.status_code, 422)
         self.assertIn("student_ids", too_many_response.get_json()["field_errors"])
+
+    def test_16_all_seven_types_can_generate_pdf(self) -> None:
+        for jenis in esurat.JENIS_SURAT:
+            with self.subTest(jenis=jenis):
+                form = self.valid_form(jenis)
+                form["output_format"] = "pdf"
+                generated = self.post("/generate", form)
+                self.assertEqual(generated.status_code, 200, self.response_message(generated))
+                self.assertEqual(generated.mimetype, "application/pdf")
+                self.assertEqual(generated.headers["X-Document-Format"], "pdf")
+                self.assertIn(".pdf", generated.headers["Content-Disposition"])
+                self.assertTrue(generated.data.startswith(b"%PDF-"))
+                self.assertIn(b"%%EOF", generated.data[-1024:])
+                row = self.history_for(form["request_id"])
+                self.assertIsNotNone(row)
+                self.assertEqual(row["status"], "generated")
 
 
 class DataContractTests(unittest.TestCase):
@@ -899,6 +945,18 @@ class PublicAdminWorkflowTests(unittest.TestCase):
         )
         text, _xml = BackendIntegrationTests.docx_text_and_xml(generated.data)
         self.assertIn("Pengujian template tambahan", text)
+
+        pdf_form = dict(form)
+        pdf_form["output_format"] = "pdf"
+        generated_pdf = admin.post(
+            "/generate", data=pdf_form, headers={"X-CSRFToken": admin_csrf}
+        )
+        self.assertEqual(generated_pdf.status_code, 200)
+        self.assertEqual(generated_pdf.mimetype, "application/pdf")
+        self.assertEqual(
+            generated_pdf.headers["X-Letter-Number"],
+            generated.headers["X-Letter-Number"],
+        )
 
         deleted = admin.post(
             "/admin/templates/custom_izin_murid/delete",

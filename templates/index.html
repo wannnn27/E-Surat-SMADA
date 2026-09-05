@@ -299,7 +299,7 @@
                 <div class="step4-ready-icon" aria-hidden="true"><i class="fa-solid fa-clipboard-check"></i></div>
                 <div>
                   <h4>Ringkasan data siap diperiksa</h4>
-                  <p>Ringkasan ini memeriksa data yang akan dimasukkan ke template. Dokumen final tetap berupa file DOCX.</p>
+                  <p>Ringkasan ini memeriksa data yang akan dimasukkan ke template. Dokumen final dapat diunduh sebagai Word atau PDF.</p>
                 </div>
                 <button type="button" class="btn-bottom-navy" id="reopenSummaryBtn">Buka Ringkasan</button>
               </div>
@@ -463,7 +463,7 @@
       </div>
       <div class="modal-body">
         <p id="summaryModalDescription" class="summary-note">
-          Ringkasan ini menampilkan data yang akan dimasukkan ke template, bukan tampilan halaman DOCX final. Periksa nama, nomor identitas, tanggal, dan keperluan sebelum mengunduh.
+          Ringkasan ini menampilkan data yang akan dimasukkan ke template, bukan tampilan halaman dokumen final. Periksa nama, nomor identitas, tanggal, dan keperluan sebelum mengunduh.
         </p>
         <div class="modal-paper summary-card">
           <dl id="summaryList" class="summary-list"></dl>
@@ -474,8 +474,11 @@
         <button type="button" class="btn-bottom-cancel" id="modalEditBtn">
           <i class="fa-solid fa-pen"></i> Kembali Edit
         </button>
-        <button type="button" class="btn-bottom-navy" id="modalDownloadBtn">
-          <i class="fa-solid fa-download"></i> Unduh File Dokumen (.docx)
+        <button type="button" class="btn-download-word" id="modalDownloadBtn">
+          <i class="fa-solid fa-file-word"></i> Unduh Word (.docx)
+        </button>
+        <button type="button" class="btn-bottom-navy" id="modalDownloadPdfBtn">
+          <i class="fa-solid fa-file-pdf"></i> Unduh PDF (.pdf)
         </button>
       </div>
     </div>
@@ -493,7 +496,7 @@
           <li>Pilih kategori dan template surat yang sesuai.</li>
           <li>Cari personel, lalu pilih hasil resmi dari database. Surat dispensasi dapat memuat hingga tiga siswa.</li>
           <li>Isi detail wajib dan periksa rentang tanggal.</li>
-          <li>Periksa Ringkasan Data, lalu unduh dokumen DOCX.</li>
+          <li>Periksa Ringkasan Data, lalu unduh dokumen dalam format Word atau PDF.</li>
         </ol>
         <p>Nomor surat dapat dikosongkan. Sistem akan mengalokasikan nomor resmi saat dokumen dibuat.</p>
       </div>

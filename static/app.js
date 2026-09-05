@@ -42,6 +42,7 @@
     summaryList: byId('summaryList'),
     downloadStatus: byId('downloadStatus'),
     modalDownloadBtn: byId('modalDownloadBtn'),
+    modalDownloadPdfBtn: byId('modalDownloadPdfBtn'),
     modalEditBtn: byId('modalEditBtn'),
     modalCloseBtn: byId('modalCloseBtn'),
     reopenSummaryBtn: byId('reopenSummaryBtn'),
@@ -370,6 +371,7 @@
     abortRequest('summary');
     abortRequest('download');
     setStatus(elements.downloadStatus, '', 'info');
+    resetDownloadButtons();
     updateStepAvailability();
   }
 
@@ -926,6 +928,8 @@
     elements.previewBtn.setAttribute('aria-busy', String(state.loadingFields || state.loadingSummary));
     elements.modalDownloadBtn.disabled = state.downloading || !state.summaryValid;
     elements.modalDownloadBtn.setAttribute('aria-busy', String(state.downloading));
+    elements.modalDownloadPdfBtn.disabled = state.downloading || !state.summaryValid;
+    elements.modalDownloadPdfBtn.setAttribute('aria-busy', String(state.downloading));
     elements.modalEditBtn.disabled = state.downloading;
     elements.modalCloseBtn.disabled = state.downloading;
   }
@@ -1198,12 +1202,13 @@
     return basicMatch ? basicMatch[1] : '';
   }
 
-  function safeFilename(filename) {
+  function safeFilename(filename, outputFormat) {
+    const extension = outputFormat === 'pdf' ? '.pdf' : '.docx';
     const cleaned = String(filename || '')
       .replace(/[\\/:*?"<>|]+/g, '-')
-      .replace(/\s+/g, '_')
-      .slice(0, 180);
-    return cleaned.toLowerCase().endsWith('.docx') ? cleaned : cleaned + '.docx';
+      .replace(/\s+/g, '_');
+    const base = cleaned.replace(/\.(?:docx|pdf)$/i, '');
+    return base.slice(0, 180 - extension.length) + extension;
   }
 
   function downloadBlob(blob, filename) {
@@ -1218,19 +1223,31 @@
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  async function downloadDocument() {
+  function resetDownloadButtons() {
+    setButtonContent(elements.modalDownloadBtn, 'Unduh Word (.docx)', 'fa-solid fa-file-word');
+    setButtonContent(elements.modalDownloadPdfBtn, 'Unduh PDF (.pdf)', 'fa-solid fa-file-pdf');
+  }
+
+  async function downloadDocument(outputFormat) {
     if (state.downloading || !state.summaryValid || !state.requestId) return;
+    const format = outputFormat === 'pdf' ? 'pdf' : 'docx';
+    const isPdf = format === 'pdf';
+    const formatLabel = isPdf ? 'PDF' : 'Word';
+    const extension = isPdf ? '.pdf' : '.docx';
+    const activeButton = isPdf ? elements.modalDownloadPdfBtn : elements.modalDownloadBtn;
     state.downloading = true;
     const controller = requestController('download');
-    setButtonContent(elements.modalDownloadBtn, 'Menyiapkan Dokumen…', 'fa-solid fa-spinner fa-spin');
-    setStatus(elements.downloadStatus, 'Membuat dokumen DOCX. Jangan klik ulang atau menutup halaman.', 'loading');
+    setButtonContent(activeButton, 'Menyiapkan ' + formatLabel + '…', 'fa-solid fa-spinner fa-spin');
+    setStatus(elements.downloadStatus, 'Membuat dokumen ' + formatLabel + '. Jangan klik ulang atau menutup halaman.', 'loading');
     updateStepAvailability();
 
     try {
       elements.requestIdInput.value = state.requestId;
+      const formData = new FormData(elements.form);
+      formData.set('output_format', format);
       const response = await fetchWithCsrfRetry('/generate', {
         method: 'POST',
-        body: new FormData(elements.form),
+        body: formData,
         headers: Object.assign({}, csrfHeaders(), { 'X-Request-ID': state.requestId }),
         signal: controller.signal
       });
@@ -1244,8 +1261,8 @@
 
       const info = currentInfo() || {};
       const groupSuffix = state.persons.length > 1 ? '-dan-' + (state.persons.length - 1) + '-siswa' : '';
-      const fallback = (state.jenis || 'surat') + '-' + (personName(state.person) || 'personel') + groupSuffix + '.docx';
-      const filename = safeFilename(parseFilename(response.headers.get('Content-Disposition')) || fallback);
+      const fallback = (state.jenis || 'surat') + '-' + (personName(state.person) || 'personel') + groupSuffix + extension;
+      const filename = safeFilename(parseFilename(response.headers.get('Content-Disposition')) || fallback, format);
       const letterNumber = response.headers.get('X-Letter-Number') || '';
       downloadBlob(blob, filename);
 
@@ -1256,11 +1273,11 @@
       setStatus(
         elements.downloadStatus,
         letterNumber
-          ? 'Dokumen berhasil dibuat dengan nomor ' + letterNumber + ' dan mulai diunduh.'
-          : 'Dokumen berhasil dibuat dan mulai diunduh.',
+          ? 'Dokumen ' + formatLabel + ' berhasil dibuat dengan nomor ' + letterNumber + ' dan mulai diunduh.'
+          : 'Dokumen ' + formatLabel + ' berhasil dibuat dan mulai diunduh.',
         'success'
       );
-      setButtonContent(elements.modalDownloadBtn, 'Unduh Lagi (.docx)', 'fa-solid fa-download');
+      setButtonContent(activeButton, 'Unduh Lagi (' + extension + ')', 'fa-solid fa-download');
     } catch (error) {
       if (error.name !== 'AbortError') {
         applyFieldErrors(error.fieldErrors);
@@ -1270,7 +1287,7 @@
           'error'
         );
       }
-      setButtonContent(elements.modalDownloadBtn, 'Coba Unduh Lagi (.docx)', 'fa-solid fa-download');
+      setButtonContent(activeButton, 'Coba Lagi (' + extension + ')', 'fa-solid fa-download');
     } finally {
       state.downloading = false;
       releaseController('download', controller);
@@ -1691,6 +1708,7 @@
     setStatus(elements.wizardStatus, 'Formulir berhasil direset.', 'success');
     setStatus(elements.fieldsStatus, '', 'info');
     setStatus(elements.downloadStatus, '', 'info');
+    resetDownloadButtons();
     setStatus(elements.searchStatus, 'Ketik minimal 2 karakter, lalu pilih data dari hasil resmi.', 'info');
     activateCategory('guru', { resetMismatch: false });
     updateTemplateCards();
@@ -1797,7 +1815,8 @@
 
     elements.previewBtn.addEventListener('click', () => void handlePrimaryAction());
     elements.btnCancel.addEventListener('click', handleBackAction);
-    elements.modalDownloadBtn.addEventListener('click', () => void downloadDocument());
+    elements.modalDownloadBtn.addEventListener('click', () => void downloadDocument('docx'));
+    elements.modalDownloadPdfBtn.addEventListener('click', () => void downloadDocument('pdf'));
     elements.modalEditBtn.addEventListener('click', closeSummaryToEdit);
     elements.reopenSummaryBtn.addEventListener('click', () => {
       if (state.summaryValid && state.summary) {
