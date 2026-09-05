@@ -6,5 +6,29 @@
     "kelas": "XI A",
     "jk": "L",
     "agama": "Islam"
+  },
+  {
+    "nis": "10002",
+    "nisn": "0000000002",
+    "nama": "SISWA PENGUJIAN DUA",
+    "kelas": "XI A",
+    "jk": "P",
+    "agama": "Islam"
+  },
+  {
+    "nis": "10003",
+    "nisn": "0000000003",
+    "nama": "SISWA PENGUJIAN TIGA",
+    "kelas": "XI B",
+    "jk": "L",
+    "agama": "Kristen"
+  },
+  {
+    "nis": "10004",
+    "nisn": "0000000004",
+    "nama": "SISWA PENGUJIAN EMPAT",
+    "kelas": "XI B",
+    "jk": "P",
+    "agama": "Katolik"
   }
 ]

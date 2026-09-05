@@ -9,7 +9,8 @@ from typing import Any, Mapping
 
 from docxtpl import DocxTemplate
 from flask import current_app
-from jinja2 import Environment, StrictUndefined
+from jinja2 import StrictUndefined
+from jinja2.sandbox import SandboxedEnvironment
 
 from .config import UNRESOLVED_TOKEN_RE
 
@@ -37,8 +38,13 @@ def _render_letter(validated: Mapping[str, Any], number: str) -> io.BytesIO:
     template_path = Path(current_app.config["TEMPLATE_DIR"]) / str(info["template"])
     context = dict(validated["context"])
     context["nomor_surat"] = number
-    environment = Environment(undefined=StrictUndefined, autoescape=True)
-    document = DocxTemplate(str(template_path))
+    environment = SandboxedEnvironment(undefined=StrictUndefined, autoescape=True)
+    template_source = (
+        io.BytesIO(info["template_blob"])
+        if info.get("template_blob")
+        else str(template_path)
+    )
+    document = DocxTemplate(template_source)
     document.render(context, jinja_env=environment, autoescape=True)
     buf = io.BytesIO()
     document.save(buf)

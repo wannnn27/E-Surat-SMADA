@@ -10,14 +10,14 @@ import secrets
 from pathlib import Path
 from typing import Any, Mapping
 
-from flask import current_app, session
+from flask import session
 from werkzeug.security import check_password_hash
 
 from .errors import DataValidationError
 from .utils import _normalize_text
 
 
-AUTH_ROLES = {"admin", "operator", "reviewer"}
+AUTH_ROLES = {"admin"}
 USERNAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,79}$")
 
 
@@ -84,7 +84,7 @@ def _load_auth_users(config: Mapping[str, Any]) -> dict[str, dict[str, str]]:
                 raise DataValidationError(f"Akun record {position} harus berupa object JSON")
             username = _normalize_text(raw.get("username", ""))
             password_hash = str(raw.get("password_hash") or "").strip()
-            role = _normalize_text(raw.get("role", "operator")).casefold()
+            role = _normalize_text(raw.get("role", "admin")).casefold()
             active = raw.get("active", True)
             if not USERNAME_RE.fullmatch(username):
                 raise DataValidationError(
@@ -94,7 +94,7 @@ def _load_auth_users(config: Mapping[str, Any]) -> dict[str, dict[str, str]]:
                 raise DataValidationError(f"Akun {username}: password_hash wajib diisi")
             if role not in AUTH_ROLES:
                 raise DataValidationError(
-                    f"Akun {username}: role harus admin, operator, atau reviewer"
+                    f"Akun {username}: role harus admin"
                 )
             if not isinstance(active, bool):
                 raise DataValidationError(f"Akun {username}: active harus boolean")
@@ -113,7 +113,7 @@ def _load_auth_users(config: Mapping[str, Any]) -> dict[str, dict[str, str]]:
     elif legacy_username:
         role = _normalize_text(config.get("AUTH_DEFAULT_ROLE", "admin")).casefold()
         if role not in AUTH_ROLES:
-            raise DataValidationError("AUTH_DEFAULT_ROLE harus admin, operator, atau reviewer")
+            raise DataValidationError("AUTH_DEFAULT_ROLE harus admin")
         users[legacy_username.casefold()] = {
             "username": legacy_username,
             "password_hash": legacy_hash,
@@ -135,6 +135,6 @@ def _password_matches(user: Mapping[str, str], password: str) -> bool:
 
 
 def _current_actor() -> tuple[str, str]:
-    if not current_app.config.get("AUTH_ENABLED"):
-        return "local", "admin"
-    return str(session.get("username") or "unknown"), str(session.get("role") or "operator")
+    if session.get("authenticated") and session.get("role") == "admin":
+        return str(session.get("username") or "admin"), "admin"
+    return "public", "user"

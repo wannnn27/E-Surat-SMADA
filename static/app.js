@@ -24,6 +24,7 @@
     form: byId('suratForm'),
     jenisInput: byId('jenisSurat'),
     idInput: byId('id_value'),
+    studentIdsInputs: byId('studentIdsInputs'),
     requestIdInput: byId('requestId'),
     searchBox: byId('searchBox'),
     searchResults: byId('searchResults'),
@@ -80,6 +81,7 @@
     kategori: 'guru',
     jenis: null,
     person: null,
+    persons: [],
     fieldSchema: [],
     fieldsLoaded: false,
     loadingFields: false,
@@ -131,6 +133,31 @@
 
   function currentInfo() {
     return state.jenis ? jenisSuratData[state.jenis] || null : null;
+  }
+
+  function maxPeople() {
+    const info = currentInfo();
+    return Math.max(1, Number(info && info.max_people) || 1);
+  }
+
+  function isMultiPersonSelection() {
+    return maxPeople() > 1;
+  }
+
+  function syncPersonInputs() {
+    const people = state.persons.length ? state.persons : (state.person ? [state.person] : []);
+    state.person = people[0] || null;
+    elements.idInput.value = state.person ? personId(state.person, state.kategori) : '';
+    if (!elements.studentIdsInputs) return;
+    elements.studentIdsInputs.replaceChildren();
+    if (!isMultiPersonSelection()) return;
+    people.forEach((person) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'student_ids';
+      input.value = personId(person, 'murid');
+      elements.studentIdsInputs.append(input);
+    });
   }
 
   function categoryLabel(kategori) {
@@ -352,9 +379,10 @@
     abortRequest('search');
     abortRequest('fields');
     state.person = null;
+    state.persons = [];
     state.loadingFields = false;
     elements.dynamicFields.setAttribute('aria-busy', 'false');
-    elements.idInput.value = '';
+    syncPersonInputs();
     clearSelectedPersonDisplay();
     if (settings.clearSearch) elements.searchBox.value = '';
     clearSearchResults();
@@ -431,19 +459,54 @@
       clearSelectedPersonDisplay();
       return;
     }
-    const wrapper = createElement('div');
-    const name = createElement('strong');
-    name.append(createIcon('fa-solid fa-circle-check'), document.createTextNode(' ' + personName(state.person)));
-    const detail = createElement('small');
-    const idLabel = state.kategori === 'murid' ? 'NIS' : 'NIP';
-    const sub = state.kategori === 'murid'
-      ? 'Kelas ' + (state.person.kelas || '-')
-      : (state.person.jabatan || '-');
-    detail.textContent = idLabel + ': ' + personId(state.person, state.kategori) + ' — ' + sub;
-    wrapper.append(name, document.createElement('br'), detail);
-    const badge = createElement('span', 'header-pill-badge', 'Terpilih');
-    elements.selectedPerson.replaceChildren(wrapper, badge);
+    const people = state.persons.length ? state.persons : [state.person];
+    const rows = people.map((person, index) => {
+      const row = createElement('div', 'selected-person-row');
+      const wrapper = createElement('div');
+      const name = createElement('strong');
+      name.append(createIcon('fa-solid fa-circle-check'), document.createTextNode(' ' + personName(person)));
+      const detail = createElement('small');
+      const idLabel = state.kategori === 'murid' ? 'NIS' : 'NIP';
+      const sub = state.kategori === 'murid'
+        ? 'Kelas ' + (person.kelas || '-')
+        : (person.jabatan || '-');
+      detail.textContent = idLabel + ': ' + personId(person, state.kategori) + ' - ' + sub;
+      wrapper.append(name, document.createElement('br'), detail);
+      if (isMultiPersonSelection()) {
+        const remove = createElement('button', 'remove-person-btn', 'Hapus');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', 'Hapus ' + personName(person) + ' dari surat');
+        remove.addEventListener('click', () => removeSelectedPerson(index));
+        row.append(wrapper, remove);
+      } else {
+        row.append(wrapper, createElement('span', 'header-pill-badge', 'Terpilih'));
+      }
+      return row;
+    });
+    elements.selectedPerson.replaceChildren(...rows);
+    elements.selectedPerson.classList.toggle('multi-person', isMultiPersonSelection());
     elements.selectedPerson.hidden = false;
+  }
+
+  function removeSelectedPerson(index) {
+    state.persons.splice(index, 1);
+    state.person = state.persons[0] || null;
+    syncPersonInputs();
+    renderSelectedPerson();
+    invalidateSummary();
+    if (!state.person) {
+      state.fieldsLoaded = false;
+      state.fieldSchema = [];
+      elements.dynamicFields.replaceChildren();
+    }
+    setStatus(
+      elements.searchStatus,
+      state.persons.length
+        ? state.persons.length + ' dari ' + maxPeople() + ' siswa dipilih. Cari siswa lain atau lanjutkan.'
+        : 'Pilih minimal satu siswa dari database resmi.',
+      state.persons.length ? 'success' : 'info'
+    );
+    updateStepAvailability();
   }
 
   function renderSearchResults(records, kategori) {
@@ -457,6 +520,7 @@
     records.forEach((person, index) => {
       const id = personId(person, kategori);
       if (!id) return;
+      if (isMultiPersonSelection() && state.persons.some((item) => personId(item, kategori) === id)) return;
       const button = createElement('button', 'result-item');
       button.type = 'button';
       button.setAttribute('role', 'option');
@@ -506,7 +570,7 @@
     elements.searchBox.setAttribute('aria-expanded', String(!elements.searchResults.hidden));
     setStatus(
       elements.searchStatus,
-      elements.searchResults.childElementCount + ' data ditemukan. Pilih satu hasil resmi.',
+      elements.searchResults.childElementCount + ' data ditemukan. Pilih hasil resmi.',
       'success'
     );
   }
@@ -540,7 +604,7 @@
   function handleSearchInput() {
     clearTimer('personSearch');
     abortRequest('search');
-    if (state.person) clearPerson({ clearSearch: false, clearFields: true });
+    if (state.person && !isMultiPersonSelection()) clearPerson({ clearSearch: false, clearFields: true });
     clearSearchResults();
     invalidateSummary();
 
@@ -787,17 +851,41 @@
       clearTemplateSelection();
       activateCategory(kategori, { resetMismatch: false });
       setWizardStep(1);
-      setStatus(
-        elements.wizardStatus,
-        'Personel berasal dari kategori ' + categoryLabel(kategori) + '. Pilih template kategori yang sama terlebih dahulu.',
-        'error'
-      );
+      setStatus(elements.wizardStatus, 'Kategori personel tidak sesuai dengan template surat.', 'error');
       return;
     }
 
     const id = personId(person, kategori);
     if (!id) {
       setStatus(elements.searchStatus, 'Data personel tidak memiliki nomor identitas yang valid.', 'error');
+      return;
+    }
+
+    if (isMultiPersonSelection()) {
+      if (state.persons.some((item) => personId(item, kategori) === id)) {
+        setStatus(elements.searchStatus, 'Siswa tersebut sudah dipilih.', 'info');
+        return;
+      }
+      if (state.persons.length >= maxPeople()) {
+        setStatus(elements.searchStatus, 'Maksimal ' + maxPeople() + ' siswa dalam satu surat dispensasi.', 'error');
+        return;
+      }
+      abortRequest('search');
+      state.persons.push(person);
+      state.person = state.persons[0];
+      state.kategori = kategori;
+      syncPersonInputs();
+      elements.searchBox.value = '';
+      clearSearchResults();
+      renderSelectedPerson();
+      invalidateSummary();
+      setStatus(
+        elements.searchStatus,
+        state.persons.length + ' dari ' + maxPeople() + ' siswa dipilih. Cari siswa lain atau lanjutkan.',
+        'success'
+      );
+      updateStepAvailability();
+      elements.searchBox.focus();
       return;
     }
 
@@ -808,8 +896,9 @@
     state.fieldSchema = [];
     elements.dynamicFields.replaceChildren();
     state.person = person;
+    state.persons = [person];
     state.kategori = kategori;
-    elements.idInput.value = id;
+    syncPersonInputs();
     elements.searchBox.value = personName(person);
     clearSearchResults();
     renderSelectedPerson();
@@ -905,7 +994,9 @@
       );
     } else if (step === 3) {
       elements.step3SelectedSurat.textContent = info.label || state.jenis || '-';
-      elements.step3SelectedPerson.textContent = personName(state.person) || '-';
+      elements.step3SelectedPerson.textContent = state.persons.length > 1
+        ? state.persons.map(personName).join(', ')
+        : (personName(state.person) || '-');
       elements.wizardHeaderIcon.className = 'fa-solid fa-pen-to-square';
       elements.wizardHeaderTitle.textContent = 'Langkah 3: Parameter & Rincian Surat';
       elements.wizardHeaderBadge.textContent = 'Formulir Detail';
@@ -963,17 +1054,29 @@
 
     addSummaryRow(fragment, 'Jenis Surat', info.label || state.jenis || '—', 'jenis_surat');
     addSummaryRow(fragment, 'Kategori', categoryLabel(info.kategori || state.kategori), 'kategori');
-    addSummaryRow(fragment, 'Nama Personel', personName(person), 'nama');
-    addSummaryRow(
-      fragment,
-      (info.kategori || state.kategori) === 'murid' ? 'NIS' : 'NIP',
-      personId(person, info.kategori || state.kategori),
-      'id_personel'
-    );
-    if ((info.kategori || state.kategori) === 'murid') {
-      addSummaryRow(fragment, 'Kelas', person.kelas || context.kelas, 'kelas');
+    const students = Array.isArray(payload.students) && payload.students.length
+      ? payload.students
+      : state.persons;
+    if (Number(info.max_people) > 1) {
+      students.forEach((student, index) => {
+        const prefix = 'Siswa ' + (index + 1);
+        addSummaryRow(fragment, prefix + ' - Nama', personName(student), 'student_' + index + '_nama');
+        addSummaryRow(fragment, prefix + ' - NIS', personId(student, 'murid'), 'student_' + index + '_nis');
+        addSummaryRow(fragment, prefix + ' - Kelas', student.kelas, 'student_' + index + '_kelas');
+      });
     } else {
-      addSummaryRow(fragment, 'Jabatan', person.jabatan || context.jabatan, 'jabatan');
+      addSummaryRow(fragment, 'Nama Personel', personName(person), 'nama');
+      addSummaryRow(
+        fragment,
+        (info.kategori || state.kategori) === 'murid' ? 'NIS' : 'NIP',
+        personId(person, info.kategori || state.kategori),
+        'id_personel'
+      );
+      if ((info.kategori || state.kategori) === 'murid') {
+        addSummaryRow(fragment, 'Kelas', person.kelas || context.kelas, 'kelas');
+      } else {
+        addSummaryRow(fragment, 'Jabatan', person.jabatan || context.jabatan, 'jabatan');
+      }
     }
 
     const numberValue = context.nomor_surat || context.nomor_surat_custom ||
@@ -1140,7 +1243,8 @@
       if (!blob.size) throw new Error('Dokumen kosong dan tidak dapat diunduh.');
 
       const info = currentInfo() || {};
-      const fallback = (state.jenis || 'surat') + '-' + (personName(state.person) || 'personel') + '.docx';
+      const groupSuffix = state.persons.length > 1 ? '-dan-' + (state.persons.length - 1) + '-siswa' : '';
+      const fallback = (state.jenis || 'surat') + '-' + (personName(state.person) || 'personel') + groupSuffix + '.docx';
       const filename = safeFilename(parseFilename(response.headers.get('Content-Disposition')) || fallback);
       const letterNumber = response.headers.get('X-Letter-Number') || '';
       downloadBlob(blob, filename);
@@ -1564,6 +1668,7 @@
     state.kategori = 'guru';
     state.jenis = null;
     state.person = null;
+    state.persons = [];
     state.fieldSchema = [];
     state.fieldsLoaded = false;
     state.loadingFields = false;
@@ -1575,6 +1680,7 @@
     state.dataVersion += 1;
     elements.jenisInput.value = '';
     elements.idInput.value = '';
+    if (elements.studentIdsInputs) elements.studentIdsInputs.replaceChildren();
     elements.requestIdInput.value = '';
     elements.dynamicFields.replaceChildren();
     elements.summaryList.replaceChildren();

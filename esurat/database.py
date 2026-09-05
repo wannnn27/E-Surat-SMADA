@@ -38,7 +38,7 @@ def _is_postgres(database: Path | str) -> bool:
 def _table(name: str, postgres: bool) -> str:
     """Kembalikan nama tabel statis yang aman untuk backend aktif."""
 
-    if name not in {"master_data", "nomor_counter", "riwayat_surat"}:
+    if name not in {"custom_templates", "master_data", "nomor_counter", "riwayat_surat"}:
         raise ValueError(f"Nama tabel tidak dikenal: {name}")
     return f"{POSTGRES_SCHEMA}.{name}" if postgres else name
 
@@ -158,6 +158,26 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS custom_templates (
+                key TEXT PRIMARY KEY,
+                label TEXT NOT NULL,
+                description TEXT NOT NULL,
+                category TEXT NOT NULL CHECK (category IN ('guru', 'murid')),
+                default_code TEXT NOT NULL,
+                signer TEXT NOT NULL CHECK (signer IN ('kepsek', 'pemohon', 'wali')),
+                fields_json TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                content BLOB NOT NULL,
+                sha256 TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                created_by TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE UNIQUE INDEX IF NOT EXISTS uq_riwayat_request_id_new
             ON riwayat_surat(request_id)
             WHERE request_id IS NOT NULL
@@ -173,7 +193,7 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS ix_riwayat_status_updated ON riwayat_surat(status, updated_at)"
         )
-        conn.execute("PRAGMA user_version = 3")
+        conn.execute("PRAGMA user_version = 4")
         conn.commit()
     except Exception:
         conn.rollback()
@@ -236,6 +256,26 @@ def _init_postgres(database_url: str) -> None:
             """
         )
         conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {_table('custom_templates', True)} (
+                key TEXT PRIMARY KEY CHECK (key ~ '^[a-z][a-z0-9_]{{2,49}}$'),
+                label TEXT NOT NULL,
+                description TEXT NOT NULL,
+                category TEXT NOT NULL CHECK (category IN ('guru', 'murid')),
+                default_code TEXT NOT NULL,
+                signer TEXT NOT NULL CHECK (signer IN ('kepsek', 'pemohon', 'wali')),
+                fields_json JSONB NOT NULL,
+                filename TEXT NOT NULL,
+                content BYTEA NOT NULL,
+                sha256 TEXT NOT NULL,
+                active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_by TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_riwayat_request_id_new "
             f"ON {_table('riwayat_surat', True)}(request_id) WHERE request_id IS NOT NULL"
         )
@@ -248,7 +288,7 @@ def _init_postgres(database_url: str) -> None:
             "CREATE INDEX IF NOT EXISTS ix_riwayat_status_updated "
             f"ON {_table('riwayat_surat', True)}(status, updated_at DESC)"
         )
-        for table_name in ("riwayat_surat", "nomor_counter", "master_data"):
+        for table_name in ("riwayat_surat", "nomor_counter", "master_data", "custom_templates"):
             table = _table(table_name, True)
             conn.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
             conn.execute(f"REVOKE ALL ON TABLE {table} FROM anon, authenticated, service_role")
@@ -283,6 +323,9 @@ def verify_postgres_runtime(database_url: str) -> None:
             f"SELECT id, request_id, nomor_surat, status "
             f"FROM {_table('riwayat_surat', True)} LIMIT 0"
         ).fetchall()
+        conn.execute(
+            f"SELECT key, fields_json, content FROM {_table('custom_templates', True)} LIMIT 0"
+        ).fetchall()
     finally:
         conn.close()
 
@@ -302,6 +345,106 @@ def load_master_records(database_url: str) -> tuple[list[dict[str, Any]], list[d
     return values["guru"], values["murid"], values["kode_arsip"]
 
 
+def load_custom_templates(database: Path | str) -> dict[str, dict[str, Any]]:
+    postgres = _is_postgres(database)
+    table = _table("custom_templates", postgres)
+    conn = _connect_db(database)
+    try:
+        rows = conn.execute(
+            f"SELECT key, label, description, category, default_code, signer, fields_json, "
+            f"filename, content, sha256 FROM {table} WHERE active = " + ("TRUE" if postgres else "1")
+        ).fetchall()
+    finally:
+        conn.close()
+    templates: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        fields = row["fields_json"]
+        if isinstance(fields, str):
+            fields = json.loads(fields)
+        templates[str(row["key"])] = {
+            "label": str(row["label"]),
+            "deskripsi": str(row["description"]),
+            "kategori": str(row["category"]),
+            "icon": "fa-file-word",
+            "badge": "Template Admin",
+            "template": str(row["filename"]),
+            "default_kode": str(row["default_code"]),
+            "signer": str(row["signer"]),
+            "fields": list(fields),
+            "template_blob": bytes(row["content"]),
+            "template_hash": str(row["sha256"]),
+            "is_custom": True,
+        }
+    return templates
+
+
+def save_custom_template(database: Path | str, template: Mapping[str, Any]) -> None:
+    postgres = _is_postgres(database)
+    table = _table("custom_templates", postgres)
+    actor, actor_role = _current_actor()
+    if actor_role != "admin":
+        raise RequestValidationError("Akses admin diperlukan", {"role": "admin diperlukan"}, 403)
+    now_iso = _now().isoformat(timespec="seconds")
+    content = bytes(template["template_blob"])
+    digest = hashlib.sha256(content).hexdigest()
+    fields_json = json.dumps(template["fields"], ensure_ascii=False, separators=(",", ":"))
+    values = (
+        template["key"], template["label"], template["deskripsi"], template["kategori"],
+        template["default_kode"], template["signer"], fields_json, template["template"],
+        content, digest, now_iso, now_iso, actor,
+    )
+    placeholder = "?::jsonb" if postgres else "?"
+    query = f"""
+        INSERT INTO {table} (
+            key, label, description, category, default_code, signer, fields_json,
+            filename, content, sha256, active, created_at, updated_at, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, {placeholder}, ?, ?, ?, {'TRUE' if postgres else '1'}, ?, ?, ?)
+        ON CONFLICT (key) DO UPDATE SET
+            label = EXCLUDED.label,
+            description = EXCLUDED.description,
+            category = EXCLUDED.category,
+            default_code = EXCLUDED.default_code,
+            signer = EXCLUDED.signer,
+            fields_json = EXCLUDED.fields_json,
+            filename = EXCLUDED.filename,
+            content = EXCLUDED.content,
+            sha256 = EXCLUDED.sha256,
+            active = EXCLUDED.active,
+            updated_at = EXCLUDED.updated_at,
+            created_by = EXCLUDED.created_by
+    """
+    conn = _connect_db(database)
+    try:
+        _begin_write(conn, postgres)
+        conn.execute(_sql(query, postgres), values)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def delete_custom_template(database: Path | str, key: str) -> bool:
+    actor_role = _current_actor()[1]
+    if actor_role != "admin":
+        raise RequestValidationError("Akses admin diperlukan", {"role": "admin diperlukan"}, 403)
+    postgres = _is_postgres(database)
+    table = _table("custom_templates", postgres)
+    conn = _connect_db(database)
+    try:
+        _begin_write(conn, postgres)
+        cursor = conn.execute(_sql(f"DELETE FROM {table} WHERE key = ?", postgres), (key,))
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        return deleted
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def _payload_hash(normalized: Mapping[str, Any]) -> str:
     material = {key: value for key, value in normalized.items() if key != "request_id"}
     encoded = json.dumps(material, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -316,6 +459,7 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
     normalized = validated["normalized"]
     info = validated["info"]
     person = validated["person"]
+    people = validated.get("people") or [person]
     request_id = str(normalized["request_id"])
     payload_hash = _payload_hash(normalized)
     now_iso = _now().isoformat(timespec="seconds")
@@ -457,7 +601,10 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
             if not number:
                 raise RuntimeError("Tidak dapat mengalokasikan nomor surat unik")
 
-        person_id = person.get("nip") or person.get("nis") or ""
+        person_id = ", ".join(
+            item.get("nip") or item.get("nis") or "" for item in people
+        )
+        person_name = ", ".join(item.get("nama", "") for item in people)
         insert_sql = f"""
             INSERT INTO {history_table} (
                 created_at, updated_at, jenis_surat, jenis_key, template, hash,
@@ -475,7 +622,7 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
                 info["template"],
                 template_hash,
                 number,
-                person["nama"],
+                person_name,
                 person_id,
                 info["kategori"],
                 validated["context"].get("keperluan", "-"),
@@ -527,9 +674,9 @@ def _mark_letter_status(record_id: int, status: str, error: str | None = None) -
 
 def _cancel_letter(record_id: int, reason: str) -> dict[str, Any]:
     actor, actor_role = _current_actor()
-    if actor_role not in {"admin", "reviewer"}:
+    if actor_role != "admin":
         raise RequestValidationError(
-            "Hanya admin atau reviewer yang dapat membatalkan surat",
+            "Hanya admin yang dapat membatalkan surat",
             {"role": "otorisasi tidak mencukupi"},
             403,
         )

@@ -13,6 +13,7 @@ from .config import (
     AUTO_NUMBER_PREVIEW,
     CUSTOM_NUMBER_RE,
     MAX_ID_LENGTH,
+    MAX_DISPENSATION_STUDENTS,
     MAX_TEXT_LENGTH,
     REQUEST_ID_RE,
 )
@@ -61,7 +62,7 @@ def _common_fields(info: Mapping[str, Any], today_iso: str) -> list[dict[str, An
 def _public_info(jenis: str, info: Mapping[str, Any], today_iso: str, *, combined: bool) -> dict[str, Any]:
     public = {
         key: info[key]
-        for key in ("label", "deskripsi", "kategori", "icon", "badge")
+        for key in ("label", "deskripsi", "kategori", "icon", "badge", "max_people", "is_custom")
         if key in info
     }
     specific = []
@@ -87,12 +88,23 @@ def _request_value(form_data: Mapping[str, Any], name: str, default: str = "") -
     return _normalize_text(value) if value is not None else ""
 
 
+def _request_values(form_data: Mapping[str, Any], name: str) -> list[str]:
+    if hasattr(form_data, "getlist"):
+        raw_values = form_data.getlist(name)
+    else:
+        value = form_data.get(name, [])
+        raw_values = value if isinstance(value, (list, tuple)) else [value]
+    normalized = [_normalize_text(value) for value in raw_values]
+    return [value for value in normalized if value]
+
+
 def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[str, Any]:
     state = current_app.extensions["esurat_data"]
     field_errors: dict[str, str] = {}
 
     jenis = _request_value(form_data, "jenis_surat")
-    info = JENIS_SURAT.get(jenis)
+    registry = current_app.extensions.get("letter_registry", JENIS_SURAT)
+    info = registry.get(jenis)
     if info is None:
         raise RequestValidationError("Jenis surat tidak valid", {"jenis_surat": "pilih jenis yang tersedia"})
 
@@ -103,15 +115,44 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
         field_errors["kategori"] = "kategori tidak sesuai jenis surat"
 
     id_value = _request_value(form_data, "id_value")
-    if not id_value or len(id_value) > MAX_ID_LENGTH or not id_value.isdigit():
-        field_errors["id_value"] = "identifier wajib berupa angka yang valid"
-        person = None
-    elif info["kategori"] == "guru":
-        person = state["guru_by_nip"].get(id_value)
+    people: list[dict[str, str]] = []
+    if int(info.get("max_people", 1)) > 1:
+        student_ids = _request_values(form_data, "student_ids") or (
+            [id_value] if id_value else []
+        )
+        if not 1 <= len(student_ids) <= MAX_DISPENSATION_STUDENTS:
+            field_errors["student_ids"] = (
+                f"pilih 1-{MAX_DISPENSATION_STUDENTS} siswa untuk surat dispensasi"
+            )
+        elif len(set(student_ids)) != len(student_ids):
+            field_errors["student_ids"] = "siswa yang sama tidak boleh dipilih dua kali"
+        else:
+            for student_id in student_ids:
+                if len(student_id) > MAX_ID_LENGTH or not student_id.isdigit():
+                    field_errors["student_ids"] = "setiap identifier siswa harus berupa angka"
+                    break
+                student = state["murid_by_nis"].get(student_id) or state[
+                    "murid_by_nisn"
+                ].get(student_id)
+                if student is None:
+                    field_errors["student_ids"] = f"data siswa {student_id} tidak ditemukan"
+                    break
+                people.append(student)
+        person = people[0] if people else None
+        if person is not None:
+            id_value = person["nis"]
     else:
-        person = state["murid_by_nis"].get(id_value) or state["murid_by_nisn"].get(id_value)
-    if id_value and person is None and "id_value" not in field_errors:
-        field_errors["id_value"] = "data personel tidak ditemukan"
+        if not id_value or len(id_value) > MAX_ID_LENGTH or not id_value.isdigit():
+            field_errors["id_value"] = "identifier wajib berupa angka yang valid"
+            person = None
+        elif info["kategori"] == "guru":
+            person = state["guru_by_nip"].get(id_value)
+        else:
+            person = state["murid_by_nis"].get(id_value) or state["murid_by_nisn"].get(id_value)
+        if id_value and person is None and "id_value" not in field_errors:
+            field_errors["id_value"] = "data personel tidak ditemukan"
+        if person is not None:
+            people = [person]
 
     today_iso = _now().date().isoformat()
     tanggal_surat_iso = _request_value(form_data, "tanggal_surat", today_iso) or today_iso
@@ -133,7 +174,6 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
         )
     elif (
         custom_number
-        and current_app.config.get("AUTH_ENABLED")
         and session.get("role") != "admin"
     ):
         field_errors["nomor_surat_custom"] = "nomor manual hanya dapat diisi oleh admin"
@@ -210,6 +250,15 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
     ):
         context.setdefault(legacy_key, "")
     context.update(context_fields)
+    context["students"] = [
+        {
+            "nama": student.get("nama", ""),
+            "nis": student.get("nis", ""),
+            "nisn": student.get("nisn", ""),
+            "kelas": student.get("kelas", ""),
+        }
+        for student in people
+    ]
     context.update({str(key): str(value) for key, value in info.get("context_defaults", {}).items()})
     context["tanggal_surat"] = format_tanggal_indo(tanggal_surat_iso)
     context["tanggal_surat_iso"] = tanggal_surat_iso
@@ -257,6 +306,9 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
         "jenis_surat": jenis,
         "kategori": info["kategori"],
         "id_value": person.get("nip") or person.get("nis") or id_value,
+        "student_ids": [student.get("nis", "") for student in people]
+        if int(info.get("max_people", 1)) > 1
+        else [],
         "tanggal_surat": tanggal_surat_iso,
         "kode_arsip": kode_arsip,
         "nomor_surat_custom": custom_number,
@@ -267,6 +319,7 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
         "jenis": jenis,
         "info": info,
         "person": person,
+        "people": people,
         "signer": signer,
         "context": context,
         "normalized": normalized,

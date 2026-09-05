@@ -1,6 +1,6 @@
 # Panduan Operasional E-Surat SMADA
 
-Panduan ini ditujukan kepada operator Tata Usaha dan administrator teknis SMAN 2 Wonosari. Versi kandidat: 29 Agustus 2026.
+Panduan ini ditujukan kepada pengguna Tata Usaha dan administrator teknis SMAN 2 Wonosari. Versi kandidat: 5 September 2026.
 
 ## Batas penggunaan
 
@@ -12,7 +12,9 @@ E-Surat saat ini hanya mendukung tujuh jenis surat otomatis:
 4. Surat tugas guru/staf.
 5. Surat keterangan guru/staf.
 6. Izin tidak masuk siswa.
-7. Dispensasi kegiatan siswa.
+7. Dispensasi kegiatan untuk satu sampai tiga siswa dalam satu surat.
+
+Administrator dapat menambahkan template DOCX lain dari dashboard `/admin`.
 
 Folder `templates_surat/active/` berisi 7 template aktif, `legacy/` berisi **18 dokumen belum aktif**, dan `master/` berisi satu master teknis kop. Jangan mengaktifkan dokumen legacy dengan mengganti nama atau menyalin tag tanpa proses migrasi dan uji pada [Audit Produksi](AUDIT_PRODUKSI.md#backlog-migrasi-18-template).
 
@@ -22,12 +24,11 @@ Ringkasan di layar adalah ringkasan data tervalidasi, bukan tampilan halaman Wor
 
 | Peran | Tanggung jawab minimum |
 | --- | --- |
-| Operator TU (`operator`) | Memilih orang yang benar, mengisi surat, memeriksa ringkasan dan DOCX, menyimpan hasil di lokasi arsip resmi; tidak berwenang nomor manual/pembatalan |
-| Pemeriksa (`reviewer`) | Memeriksa substansi, nomor, penandatangan, dan kelayakan terbit; dapat membatalkan dengan alasan |
-| Administrator (`admin`) | Menjaga service, akun, TLS, data master, template, backup/restore; dapat nomor manual dan pembatalan |
+| Pengguna (`user`, tanpa login) | Memilih orang yang benar, mengisi surat, memeriksa ringkasan dan DOCX, serta menyimpan hasil di lokasi arsip resmi; tidak dapat membuka riwayat, nomor manual, pembatalan, atau pengelolaan template |
+| Administrator (`admin`, dengan login) | Menjaga service, akun, TLS, data master, template, backup/restore; dapat melihat riwayat, mengekspor, memakai nomor manual, membatalkan, dan menambah template |
 | Pemilik data/pimpinan | Menetapkan hak akses, retensi, kebijakan nomor surat, penerimaan pilot, dan respons insiden data pribadi |
 
-Gunakan akun individual agar setiap nomor dapat ditelusuri. Jangan berbagi akun atau meninggalkan session terbuka ketika meja ditinggalkan.
+Gunakan akun admin individual agar tindakan pengelolaan dapat ditelusuri. Jangan berbagi akun atau meninggalkan session admin terbuka ketika meja ditinggalkan.
 
 ## Aturan keamanan data
 
@@ -58,10 +59,10 @@ Administrator atau petugas yang ditunjuk:
 - Cocokkan jumlah/sampel master melalui pencarian dan laporan import yang disetujui; health sengaja tidak membuka jumlah data.
 - Jika status tidak sehat atau master berubah tanpa jadwal, hentikan penerbitan surat dan hubungi administrator.
 
-Operator:
+Pengguna:
 
 - Buka alamat HTTPS resmi dari bookmark sekolah. Jangan mengabaikan peringatan sertifikat browser.
-- Login bila autentikasi aktif.
+- Tidak perlu login; halaman utama langsung membuka alur pembuatan surat.
 - Pastikan nama aplikasi, tanggal, dan koneksi sesuai; jangan lanjut melalui salinan situs atau alamat IP yang tidak diumumkan admin.
 
 ## Alur membuat surat
@@ -78,6 +79,10 @@ Pilih kategori guru/staf atau siswa, lalu pilih salah satu dari tujuh jenis akti
 
 Cari menggunakan nama, NIP, NIS, atau NISN. **Klik hasil pencarian yang benar**; mengetik teks saja belum berarti data telah dipilih.
 
+Khusus surat dispensasi, pilih satu siswa lalu cari kembali untuk menambahkan
+siswa kedua atau ketiga. Hapus pilihan yang keliru sebelum melanjutkan. Sistem
+menolak siswa duplikat dan lebih dari tiga siswa.
+
 Sebelum lanjut, cocokkan sekurang-kurangnya:
 
 - nama lengkap;
@@ -93,7 +98,7 @@ Jika ada dua nama mirip, gunakan nomor identitas sebagai pembeda. Bila orang tid
 - Isi keperluan secara spesifik, singkat, dan tanpa data pribadi yang tidak diperlukan.
 - Isi field khusus, misalnya jenis cuti, nama wali, kegiatan, penyelenggara, dan tempat.
 - Secara normal, **kosongkan nomor surat manual** agar server mengalokasikan nomor unik ketika dokumen dibuat.
-- Hanya role admin dapat memakai nomor manual setelah mendapat nomor dari pejabat pengelola. Operator tidak dapat melewati pembatasan ini.
+- Hanya role admin dapat memakai nomor manual setelah mendapat nomor dari pejabat pengelola. Pengguna umum tidak dapat melewati pembatasan ini.
 
 ### 4. Periksa Ringkasan Data
 
@@ -113,7 +118,7 @@ Nomor otomatis baru dialokasikan saat tombol unduh/generate dijalankan, sehingga
 - Klik unduh satu kali dan tunggu status selesai.
 - Catat nomor surat yang dikembalikan aplikasi.
 - Jika koneksi terputus setelah klik, periksa menu Riwayat sebelum mencoba lagi. Jangan mengulang berkali-kali atau membuat form baru karena dapat menghasilkan reservasi nomor berbeda.
-- Aplikasi mencatat metadata riwayat, tetapi tidak menjadi penyimpanan permanen DOCX hasil operator. Simpan file yang terunduh ke lokasi arsip resmi.
+- Aplikasi mencatat metadata riwayat, tetapi tidak menjadi penyimpanan permanen DOCX hasil pengguna. Simpan file yang terunduh ke lokasi arsip resmi.
 
 ### 6. Pemeriksaan DOCX wajib
 
@@ -136,9 +141,10 @@ Setelah disetujui, simpan DOCX/PDF final sesuai tata nama, klasifikasi, retensi,
 
 ### 8. Riwayat, ekspor, dan pembatalan
 
+- Login sebagai admin; menu Riwayat tidak tersedia untuk pengguna umum.
 - Gunakan pencarian serta filter status/jenis; navigasikan halaman bila hasil banyak.
 - `Ekspor CSV` mengekspor hasil sesuai filter aktif. Simpan CSV sebagai PII di lokasi terbatas dan hapus dari Downloads setelah dipindahkan.
-- Pembatalan hanya tersedia untuk admin/reviewer dan wajib memiliki alasan minimal lima karakter.
+- Pembatalan hanya tersedia untuk admin dan wajib memiliki alasan minimal lima karakter.
 - Pembatalan tidak menghapus record dan tidak membuat nomor dapat digunakan ulang.
 - Untuk surat pengganti, batalkan sesuai SOP lalu buat surat baru. Catat hubungan nomor lama-baru pada register resmi karena kandidat belum memiliki relasi koreksi digital.
 
@@ -148,8 +154,8 @@ Setelah disetujui, simpan DOCX/PDF final sesuai tata nama, klasifikasi, retensi,
 | --- | --- |
 | Data personel tidak ditemukan/salah | Hentikan form; minta admin memperbarui Excel, validasi import, `--write`, lalu restart |
 | Kode arsip ditolak | Pilih kode dari direktori; jangan mengarang kode |
-| HTTP 401 / kembali ke login | Login ulang; jika berulang, hubungi admin |
-| HTTP 403 / CSRF | Browser mencoba mengambil token baru dan mengulang satu kali. Jika tetap gagal, login ulang; minta admin memeriksa secret stabil dan durasi session |
+| Kembali ke login admin | Login ulang; jika berulang, minta administrator lain memeriksa akun dan secret |
+| HTTP 403 / CSRF atau akses admin | Browser mencoba mengambil token baru dan mengulang satu kali. Jika mengakses fungsi admin, login sebagai admin; selain itu minta admin memeriksa secret stabil dan durasi session |
 | HTTP 409 / proses sedang berjalan / nomor konflik | Tunggu, cek Riwayat, lalu minta admin memeriksa status; jangan klik berulang |
 | Aplikasi tanpa autentikasi menolak akses jaringan | Ini kontrol local-only; admin harus memasang autentikasi dan HTTPS, bukan mematikan kontrol |
 | `/healthz` gagal atau status tidak sehat | Hentikan penerbitan; simpan bukti waktu/error dan eskalasi |
@@ -157,7 +163,7 @@ Setelah disetujui, simpan DOCX/PDF final sesuai tata nama, klasifikasi, retensi,
 | Nomor tampak meloncat | Cek Riwayat untuk generate gagal/percobaan; jangan mengubah database langsung |
 | Ikon/font tidak tampil pada jaringan tertutup | Fungsi inti mungkin tetap jalan; laporkan ke admin. Asset eksternal perlu dipindahkan lokal sebelum penggunaan air-gapped |
 
-Catat insiden dengan waktu, operator, jenis surat, nomor/request ID bila ada, screenshot tanpa menyebarkan data berlebih, dan keputusan penyelesaian.
+Catat insiden dengan waktu, pengguna, jenis surat, nomor/request ID bila ada, screenshot tanpa menyebarkan data berlebih, dan keputusan penyelesaian.
 
 ## Pemeliharaan administrator
 
@@ -165,7 +171,7 @@ Catat insiden dengan waktu, operator, jenis surat, nomor/request ID bila ada, sc
 
 Aplikasi membaca environment proses dan **tidak otomatis membaca `.env`**. Simpan konfigurasi pada mekanisme secret/service manager yang hanya dapat dibaca admin. Contoh variabel ada di [../.env.example](../.env.example).
 
-Untuk satu komputer lokal, biarkan `ESURAT_HOST=127.0.0.1` dan jangan aktifkan akses jarak jauh. Untuk LAN, pertahankan backend di `127.0.0.1:5000`, gunakan `ESURAT_USERS_FILE` dengan akun individual, secret stabil, `ESURAT_HTTPS=1`, dan reverse proxy HTTPS pada port 443. Firewall tidak boleh membuka port 5000. Batasi `/healthz` di proxy/firewall. Vercel hanya boleh dipakai dengan Supabase PostgreSQL persisten, autentikasi, dan secret stabil; tanpa `DATABASE_URL` aplikasi wajib gagal startup.
+Untuk satu komputer lokal, biarkan `ESURAT_HOST=127.0.0.1` dan jangan aktifkan akses jarak jauh. Untuk LAN, pertahankan backend di `127.0.0.1:5000`, gunakan `ESURAT_USERS_FILE` dengan akun admin individual, secret stabil, `ESURAT_HTTPS=1`, dan reverse proxy HTTPS pada port 443. Firewall tidak boleh membuka port 5000. Batasi `/healthz` di proxy/firewall. Vercel hanya boleh dipakai dengan Supabase PostgreSQL persisten, akun admin, dan secret stabil; tanpa `DATABASE_URL` aplikasi wajib gagal startup. Pengguna umum tetap mengakses alur pembuatan surat tanpa login.
 
 Letakkan root operasional di luar checkout Git dan set `ESURAT_DATA_ROOT`. Struktur yang direkomendasikan adalah `source/`, `master/`, `runtime/`, dan `config/users.json`. Lihat [README](../README.md#provision-data-secara-privat).
 
@@ -203,6 +209,12 @@ Lokasi Excel alternatif dapat diberikan dengan `--guru-file`, `--murid-file`, da
 ### Rebuild template
 
 `scripts/build_docx_templates.py` hanya membangun ulang tujuh template di `templates_surat/active/`. Ia memakai `templates_surat/master/kop_smada.docx` sebagai sumber teknis dan tidak mengaktifkan 18 template di `legacy/`.
+
+Untuk template tambahan, login sebagai admin, buka **Kelola Admin**, lalu unggah
+DOCX maksimal 4 MB. Template wajib memiliki placeholder `nomor_surat`,
+`tanggal_surat`, dan `nama`; placeholder lain otomatis menjadi field formulir.
+Template tambahan disimpan di database privat dan dapat dihapus dari dashboard
+dengan konfirmasi. Template bawaan tidak dapat ditimpa atau dihapus dari panel.
 
 1. Jadwalkan maintenance dan hentikan penerbitan surat.
 2. Backup/versioning ketujuh DOCX aktif dan master kop di lokasi privat.
@@ -264,7 +276,7 @@ Restore adalah operasi admin dan memerlukan persetujuan pemilik layanan. Rollbac
 8. Periksa `/healthz`, laporan/sampel master, beberapa pencarian, login, dan Riwayat.
 9. Jalankan automated test dan QA tujuh template, lalu buka DOCX hasilnya.
 10. Rekonsiliasi nomor surat terhadap register/arsip nyata. Tandai nomor yang pernah terbit; jangan menghapus atau menggunakan ulang nomor hanya karena tidak ada di database hasil restore.
-11. Minta operator/pemilik layanan menyetujui pembukaan kembali.
+11. Minta pengguna TU/pemilik layanan menyetujui pembukaan kembali.
 12. Dokumentasikan backup yang dipakai, hash, pelaksana, hasil uji, dan tindakan pencegahan.
 
 ## Checklist penutupan hari kerja
@@ -286,6 +298,6 @@ Sebelum pilot dimulai, pemilik layanan menandatangani bahwa:
 - data master dan Kepala Sekolah telah diverifikasi;
 - automated test serta tujuh jenis aktif lulus QA data, Word, dan cetak;
 - kebijakan nomor manual, pembatalan, retensi, serta eskalasi sudah tertulis;
-- operator telah dilatih dan masa pilot memakai pemeriksaan dua orang;
+- pengguna TU telah dilatih dan masa pilot memakai pemeriksaan dua orang;
 - 18 template belum aktif dinyatakan di luar cakupan;
 - pemilik teknis dan pengganti, jam dukungan, serta prosedur rollback sudah ditetapkan.

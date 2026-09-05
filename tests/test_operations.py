@@ -91,6 +91,7 @@ class DatabaseMigrationTests(unittest.TestCase):
         ).casefold()
         self.assertIn("create schema if not exists esurat", statements)
         self.assertIn("create table if not exists esurat.master_data", statements)
+        self.assertIn("create table if not exists esurat.custom_templates", statements)
         self.assertIn("alter table esurat.riwayat_surat enable row level security", statements)
         self.assertIn("revoke all on table esurat.master_data", statements)
         connection.commit.assert_called_once_with()
@@ -114,7 +115,7 @@ class DatabaseMigrationTests(unittest.TestCase):
             str(call.args[0]).strip().casefold()
             for call in connection.execute.call_args_list
         ]
-        self.assertEqual(len(statements), 3)
+        self.assertEqual(len(statements), 4)
         self.assertTrue(all(statement.startswith("select ") for statement in statements))
         self.assertTrue(all("esurat." in statement for statement in statements))
         connection.commit.assert_not_called()
@@ -187,7 +188,7 @@ class DatabaseMigrationTests(unittest.TestCase):
                 version = migrated.execute("PRAGMA user_version").fetchone()[0]
             finally:
                 migrated.close()
-            self.assertEqual(version, 3)
+            self.assertEqual(version, 4)
             self.assertEqual(row["nomor_surat"], "800/001/SMADA/2026")
             self.assertEqual(row["status"], "generated")
             self.assertEqual(row["created_by"], "legacy")

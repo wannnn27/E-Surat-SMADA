@@ -18,6 +18,7 @@ from unittest.mock import patch
 import esurat
 from esurat import application as application_module
 from werkzeug.security import generate_password_hash
+from werkzeug.datastructures import MultiDict
 
 
 FIXED_NOW = datetime(2026, 8, 23, 10, 30, tzinfo=esurat.WIB)
@@ -358,17 +359,12 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(conflict.status_code, 409)
         self.assertIn("request_id", conflict.get_json()["field_errors"])
 
-    def test_09_duplicate_manual_number_is_rejected(self) -> None:
+    def test_09_public_user_cannot_use_manual_number(self) -> None:
         manual = "800.1.11/900/SMADA/2026"
         first = self.valid_form("izin_guru", custom_number=manual)
         first_response = self.post("/generate", first)
-        self.assertEqual(first_response.status_code, 200, self.response_message(first_response))
-        self.assertEqual(first_response.headers["X-Letter-Number"], manual)
-
-        second = self.valid_form("izin_guru", custom_number=manual)
-        second_response = self.post("/generate", second)
-        self.assertEqual(second_response.status_code, 409)
-        self.assertIn("nomor_surat_custom", second_response.get_json()["field_errors"])
+        self.assertEqual(first_response.status_code, 422)
+        self.assertIn("nomor_surat_custom", first_response.get_json()["field_errors"])
 
     def test_10_render_failure_is_failed_and_retry_reuses_reserved_number(self) -> None:
         form = self.valid_form("izin_guru")
@@ -433,55 +429,85 @@ class BackendIntegrationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Placeholder template belum terisi"):
             esurat._check_rendered_docx(buffer)
 
-    def test_14_history_filter_pagination_actor_and_cancellation(self) -> None:
+    def test_14_public_actor_history_and_cancellation_are_admin_only(self) -> None:
         form = self.valid_form("surat_keterangan_guru")
         generated = self.post("/generate", form)
         self.assertEqual(generated.status_code, 200, self.response_message(generated))
         row = self.history_for(form["request_id"])
         self.assertIsNotNone(row)
         assert row is not None
-        self.assertEqual(row["created_by"], "local")
-        self.assertEqual(row["created_by_role"], "admin")
+        self.assertEqual(row["created_by"], "public")
+        self.assertEqual(row["created_by_role"], "user")
 
         cancelled = self.post(
             f"/api/history/{row['id']}/cancel",
             {"reason": "Dibatalkan pada pengujian terkontrol"},
         )
-        self.assertEqual(cancelled.status_code, 200, self.response_message(cancelled))
-        self.assertEqual(cancelled.get_json()["status"], "cancelled")
+        self.assertEqual(cancelled.status_code, 403, self.response_message(cancelled))
 
         filtered = self.client.get(
             "/api/list/riwayat?status=cancelled&jenis=surat_keterangan_guru&page=1&per_page=10"
         )
-        self.assertEqual(filtered.status_code, 200)
-        payload = filtered.get_json()
-        self.assertGreaterEqual(payload["total"], 1)
-        self.assertEqual(payload["page"], 1)
-        self.assertTrue(all(item["status"] == "cancelled" for item in payload["items"]))
-        self.assertTrue(all(item["created_by"] == "local" for item in payload["items"]))
+        self.assertEqual(filtered.status_code, 403)
 
         exported = self.client.get(
             "/api/history/export.csv?status=cancelled&jenis=surat_keterangan_guru"
         )
-        self.assertEqual(exported.status_code, 200)
-        self.assertIn("text/csv", exported.headers["Content-Type"])
-        self.assertIn("attachment", exported.headers["Content-Disposition"])
-        csv_text = exported.data.decode("utf-8-sig")
-        self.assertIn("Tanggal dibuat,Nomor surat,Jenis surat,Status", csv_text)
-        self.assertIn(row["nomor_surat"], csv_text)
+        self.assertEqual(exported.status_code, 403)
+
+    def test_15_dispensation_accepts_one_to_three_unique_students(self) -> None:
+        students = self.state["murid"][:3]
+        base_form = self.valid_form("dispensasi_murid")
+        student_ids = [student["nis"] for student in students]
+        form = MultiDict([*base_form.items(), *(("student_ids", value) for value in student_ids)])
+        preview = self.post("/api/preview_render", form)
+        self.assertEqual(preview.status_code, 200, self.response_message(preview))
+        payload = preview.get_json()
+        self.assertEqual([item["nis"] for item in payload["students"]], student_ids)
+        self.assertEqual(len(payload["context"]["students"]), 3)
+
+        generated = self.post("/generate", form)
+        self.assertEqual(generated.status_code, 200, self.response_message(generated))
+        text, xml = self.docx_text_and_xml(generated.data)
+        self.assertNotRegex(xml, esurat.UNRESOLVED_TOKEN_RE)
+        for student in students:
+            self.assertIn(student["nama"], text)
+            self.assertIn(student["nis"], text)
+        row = self.history_for(form["request_id"])
+        self.assertEqual(row["nama_pemohon"], ", ".join(item["nama"] for item in students))
+        self.assertEqual(row["id_pemohon"], ", ".join(item["nis"] for item in students))
+
+        duplicate_base = self.valid_form("dispensasi_murid")
+        duplicate = MultiDict(
+            [*duplicate_base.items(), ("student_ids", students[0]["nis"]), ("student_ids", students[0]["nis"])]
+        )
+        duplicate_response = self.post("/api/preview_render", duplicate)
+        self.assertEqual(duplicate_response.status_code, 422)
+        self.assertIn("student_ids", duplicate_response.get_json()["field_errors"])
+
+        too_many_base = self.valid_form("dispensasi_murid")
+        too_many = MultiDict(
+            [*too_many_base.items(), *(("student_ids", item["nis"]) for item in self.state["murid"][:4])]
+        )
+        too_many_response = self.post("/api/preview_render", too_many)
+        self.assertEqual(too_many_response.status_code, 422)
+        self.assertIn("student_ids", too_many_response.get_json()["field_errors"])
 
 
 class DataContractTests(unittest.TestCase):
-    def test_public_unauthenticated_deployment_is_rejected(self) -> None:
-        with self.assertRaisesRegex(esurat.DataValidationError, "Akses publik tanpa autentikasi"):
-            esurat.create_app(
-                {
-                    "TESTING": True,
-                    "AUTH_ENABLED": False,
-                    "ALLOW_PUBLIC_UNAUTHENTICATED": True,
-                    "SECRET_KEY": "",
-                }
-            )
+    def test_public_user_mode_is_supported_on_loopback(self) -> None:
+        app = esurat.create_app(
+            {
+                "TESTING": True,
+                "DATA_DIR": FIXTURE_DATA_DIR,
+                "DATABASE": Path(tempfile.gettempdir()) / "public-user-mode.sqlite3",
+                "AUTH_ENABLED": False,
+                "BIND_HOST": "127.0.0.1",
+                "KEPSEK_NIP": TEST_KEPSEK_NIP,
+                "SECRET_KEY": "",
+            }
+        )
+        self.assertFalse(app.config["AUTH_ENABLED"])
 
     def test_vercel_deployment_requires_persistent_postgres(self) -> None:
         with patch.dict(os.environ, {"VERCEL": "1"}):
@@ -501,6 +527,7 @@ class DataContractTests(unittest.TestCase):
             patch.object(application_module, "_load_master_state", return_value=state),
             patch.object(application_module, "verify_postgres_runtime") as verify_runtime,
             patch.object(application_module, "init_db") as migrate_database,
+            patch.object(application_module, "load_custom_templates", return_value={}),
         ):
             deployed_app = esurat.create_app(
                 {
@@ -530,7 +557,7 @@ class DataContractTests(unittest.TestCase):
                         {
                             "username": "operator-nonaktif",
                             "password_hash": generate_password_hash("password-pengujian"),
-                            "role": "operator",
+                            "role": "admin",
                             "active": False,
                         }
                     ]
@@ -608,14 +635,19 @@ class AuthenticationTests(unittest.TestCase):
     def csrf(self) -> str:
         return self.client.get("/api/csrf").get_json()["csrf_token"]
 
-    def test_browser_redirect_api_401_and_form_login_logout(self) -> None:
+    def test_public_user_admin_gate_and_form_login_logout(self) -> None:
         browser = self.client.get("/", follow_redirects=False)
-        self.assertEqual(browser.status_code, 302)
-        self.assertIn("/login?next=/", browser.headers["Location"])
+        self.assertEqual(browser.status_code, 200)
+        self.assertIn("Login Admin", browser.get_data(as_text=True))
 
         api = self.client.get("/api/list/guru")
-        self.assertEqual(api.status_code, 401)
-        self.assertIn("error", api.get_json())
+        self.assertEqual(api.status_code, 200)
+        self.assertGreater(len(api.get_json()), 0)
+
+        admin_page = self.client.get("/admin", follow_redirects=False)
+        self.assertEqual(admin_page.status_code, 302)
+        self.assertIn("/login?next=/admin", admin_page.headers["Location"])
+        self.assertEqual(self.client.get("/api/list/riwayat").status_code, 403)
 
         login_page = self.client.get("/login")
         self.assertEqual(login_page.status_code, 200)
@@ -649,8 +681,9 @@ class AuthenticationTests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertEqual(logged_in.status_code, 302)
-        self.assertEqual(logged_in.headers["Location"], "/")
+        self.assertEqual(logged_in.headers["Location"], "/admin")
         self.assertEqual(self.client.get("/").status_code, 200)
+        self.assertEqual(self.client.get("/admin").status_code, 200)
         with self.client.session_transaction() as auth_session:
             self.assertEqual(auth_session["role"], "admin")
             self.assertTrue(auth_session.permanent)
@@ -660,7 +693,7 @@ class AuthenticationTests(unittest.TestCase):
             "/logout", data={"csrf_token": new_token}, follow_redirects=False
         )
         self.assertEqual(logged_out.status_code, 302)
-        self.assertIn("/login", logged_out.headers["Location"])
+        self.assertEqual(logged_out.headers["Location"], "/")
 
     def test_login_rate_limit(self) -> None:
         token = self.csrf()
@@ -690,18 +723,19 @@ class AuthenticationTests(unittest.TestCase):
         users = self.app.extensions["auth_users"]
         saved = users.pop("operator-tu")
         try:
-            denied = self.client.get("/api/list/guru")
-            self.assertEqual(denied.status_code, 401)
+            self.assertEqual(self.client.get("/api/list/guru").status_code, 200)
+            denied = self.client.get("/api/list/riwayat")
+            self.assertEqual(denied.status_code, 403)
             csrf_state = self.client.get("/api/csrf").get_json()
             self.assertFalse(csrf_state["authenticated"])
         finally:
             users["operator-tu"] = saved
 
 
-class MultiUserWorkflowTests(unittest.TestCase):
+class PublicAdminWorkflowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.temp_dir = tempfile.TemporaryDirectory(prefix="esurat-multi-user-tests-")
+        cls.temp_dir = tempfile.TemporaryDirectory(prefix="esurat-public-admin-tests-")
         root = Path(cls.temp_dir.name)
         cls.database = root / "multi-user.sqlite3"
         cls.users_file = root / "users.json"
@@ -709,15 +743,10 @@ class MultiUserWorkflowTests(unittest.TestCase):
             json.dumps(
                 [
                     {
-                        "username": "operator-satu",
-                        "password_hash": generate_password_hash("password-operator"),
-                        "role": "operator",
-                    },
-                    {
-                        "username": "reviewer-satu",
-                        "password_hash": generate_password_hash("password-reviewer"),
-                        "role": "reviewer",
-                    },
+                        "username": "admin-satu",
+                        "password_hash": generate_password_hash("password-admin"),
+                        "role": "admin",
+                    }
                 ]
             ),
             encoding="utf-8",
@@ -753,9 +782,9 @@ class MultiUserWorkflowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         return client.get("/api/csrf").get_json()["csrf_token"]
 
-    def test_operator_audit_manual_number_guard_and_reviewer_cancellation(self) -> None:
-        operator = self.app.test_client()
-        operator_csrf = self.login(operator, "operator-satu", "password-operator")
+    def test_public_generation_and_admin_management_boundaries(self) -> None:
+        public = self.app.test_client()
+        public_csrf = public.get("/api/csrf").get_json()["csrf_token"]
         person = self.app.extensions["esurat_data"]["guru"][0]
         form = {
             "jenis_surat": "surat_keterangan_guru",
@@ -768,16 +797,16 @@ class MultiUserWorkflowTests(unittest.TestCase):
             "keperluan": "Pengujian akun individual",
             "request_id": str(uuid.uuid4()),
         }
-        manual = operator.post(
-            "/generate", data=form, headers={"X-CSRFToken": operator_csrf}
+        manual = public.post(
+            "/generate", data=form, headers={"X-CSRFToken": public_csrf}
         )
         self.assertEqual(manual.status_code, 422)
         self.assertIn("nomor_surat_custom", manual.get_json()["field_errors"])
 
         form["nomor_surat_custom"] = ""
         form["request_id"] = str(uuid.uuid4())
-        generated = operator.post(
-            "/generate", data=form, headers={"X-CSRFToken": operator_csrf}
+        generated = public.post(
+            "/generate", data=form, headers={"X-CSRFToken": public_csrf}
         )
         self.assertEqual(generated.status_code, 200)
         conn = sqlite3.connect(self.database)
@@ -790,25 +819,94 @@ class MultiUserWorkflowTests(unittest.TestCase):
             conn.close()
         self.assertIsNotNone(row)
         assert row is not None
-        self.assertEqual(row["created_by"], "operator-satu")
-        self.assertEqual(row["created_by_role"], "operator")
+        self.assertEqual(row["created_by"], "public")
+        self.assertEqual(row["created_by_role"], "user")
 
-        denied = operator.post(
+        denied = public.post(
             f"/api/history/{row['id']}/cancel",
-            data={"reason": "Operator mencoba membatalkan"},
-            headers={"X-CSRFToken": operator_csrf},
+            data={"reason": "Pengguna mencoba membatalkan"},
+            headers={"X-CSRFToken": public_csrf},
         )
         self.assertEqual(denied.status_code, 403)
+        self.assertEqual(public.get("/api/list/riwayat").status_code, 403)
 
-        reviewer = self.app.test_client()
-        reviewer_csrf = self.login(reviewer, "reviewer-satu", "password-reviewer")
-        cancelled = reviewer.post(
+        admin = self.app.test_client()
+        admin_csrf = self.login(admin, "admin-satu", "password-admin")
+        cancelled = admin.post(
             f"/api/history/{row['id']}/cancel",
-            data={"reason": "Dibatalkan oleh reviewer pengujian"},
-            headers={"X-CSRFToken": reviewer_csrf},
+            data={"reason": "Dibatalkan oleh admin pengujian"},
+            headers={"X-CSRFToken": admin_csrf},
         )
         self.assertEqual(cancelled.status_code, 200)
-        self.assertEqual(cancelled.get_json()["cancelled_by"], "reviewer-satu")
+        self.assertEqual(cancelled.get_json()["cancelled_by"], "admin-satu")
+        self.assertEqual(admin.get("/api/list/riwayat").status_code, 200)
+
+        manual_number = "MANUAL/001/2026"
+        form["nomor_surat_custom"] = manual_number
+        form["request_id"] = str(uuid.uuid4())
+        first_manual = admin.post(
+            "/generate", data=form, headers={"X-CSRFToken": admin_csrf}
+        )
+        self.assertEqual(first_manual.status_code, 200)
+        self.assertEqual(first_manual.headers["X-Letter-Number"], manual_number)
+        form["request_id"] = str(uuid.uuid4())
+        duplicate_manual = admin.post(
+            "/generate", data=form, headers={"X-CSRFToken": admin_csrf}
+        )
+        self.assertEqual(duplicate_manual.status_code, 409)
+
+    def test_admin_can_add_render_and_delete_custom_template(self) -> None:
+        admin = self.app.test_client()
+        admin_csrf = self.login(admin, "admin-satu", "password-admin")
+        template_bytes = (esurat.TEMPLATE_DIR / "izin_murid.docx").read_bytes()
+        uploaded = admin.post(
+            "/admin/templates",
+            data={
+                "_csrf_token": admin_csrf,
+                "key": "custom_izin_murid",
+                "label": "Template Izin Murid Tambahan",
+                "description": "Template tambahan yang dikelola administrator.",
+                "category": "murid",
+                "signer": "wali",
+                "default_code": "400.3.8.9",
+                "template_file": (io.BytesIO(template_bytes), "custom.docx"),
+            },
+            content_type="multipart/form-data",
+            follow_redirects=False,
+        )
+        self.assertEqual(uploaded.status_code, 302, uploaded.get_data(as_text=True))
+        self.assertIn("custom_izin_murid", self.app.extensions["letter_registry"])
+
+        student = self.app.extensions["esurat_data"]["murid"][0]
+        form = {
+            "jenis_surat": "custom_izin_murid",
+            "kategori": "murid",
+            "id_value": student["nis"],
+            "tanggal_surat": "2026-08-23",
+            "tanggal_mulai": "2026-08-24",
+            "tanggal_selesai": "2026-08-25",
+            "kode_arsip": "400.3.8.9",
+            "nomor_surat_custom": "",
+            "nama_wali": "Wali Template Tambahan",
+            "keperluan": "Pengujian template tambahan",
+            "request_id": str(uuid.uuid4()),
+        }
+        generated = admin.post("/generate", data=form, headers={"X-CSRFToken": admin_csrf})
+        self.assertEqual(
+            generated.status_code,
+            200,
+            BackendIntegrationTests.response_message(generated),
+        )
+        text, _xml = BackendIntegrationTests.docx_text_and_xml(generated.data)
+        self.assertIn("Pengujian template tambahan", text)
+
+        deleted = admin.post(
+            "/admin/templates/custom_izin_murid/delete",
+            data={"_csrf_token": admin_csrf, "confirm": "DELETE"},
+            follow_redirects=False,
+        )
+        self.assertEqual(deleted.status_code, 302)
+        self.assertNotIn("custom_izin_murid", self.app.extensions["letter_registry"])
 
 
 if __name__ == "__main__":

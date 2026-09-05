@@ -30,8 +30,10 @@ from .config import (
     DATA_ROOT,
     DB_PATH,
     MAX_QUERY_LENGTH,
+    MAX_TEMPLATE_BYTES,
     PROJECT_ROOT,
     TEMPLATE_DIR,
+    TEMPLATE_KEY_RE,
     TEMPLATE_ROOT,
     UNRESOLVED_TOKEN_RE,
     WIB,
@@ -47,7 +49,10 @@ from .database import (
     _reserve_letter,
     _sql,
     _table,
+    delete_custom_template,
     init_db,
+    load_custom_templates,
+    save_custom_template,
     verify_postgres_runtime,
 )
 from .errors import DataValidationError, RequestValidationError
@@ -69,6 +74,7 @@ from .security import (
     _load_auth_users,
     _password_matches,
 )
+from .template_management import validate_custom_template
 from .utils import _normalize_text, _now, _validate_safe_text, format_tanggal_indo
 
 
@@ -92,7 +98,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         DATA_DIR=DATA_DIR,
         TEMPLATE_DIR=TEMPLATE_DIR,
         DATABASE=os.getenv("DATABASE_URL", str(DB_PATH)),
-        MAX_CONTENT_LENGTH=128 * 1024,
+        MAX_CONTENT_LENGTH=MAX_TEMPLATE_BYTES + 128 * 1024,
         NOW_FUNC=lambda: datetime.now(WIB),
         KEPSEK_NIP=os.getenv("ESURAT_KEPSEK_NIP", ""),
         AUTH_USERNAME=os.getenv("ESURAT_USERNAME", ""),
@@ -133,10 +139,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         app.config["AUTH_ENABLED"] = bool(auth_users)
     if app.config["AUTH_ENABLED"] and not auth_users:
         raise DataValidationError("AUTH_ENABLED memerlukan setidaknya satu akun aktif")
-    if app.config.get("ALLOW_PUBLIC_UNAUTHENTICATED"):
-        raise DataValidationError("Akses publik tanpa autentikasi tidak didukung")
     if is_vercel and not app.config["AUTH_ENABLED"]:
-        raise DataValidationError("Autentikasi wajib diaktifkan pada deployment Vercel")
+        raise DataValidationError("Akun admin wajib dikonfigurasi pada deployment Vercel")
     stable_secret_required = bool(app.config["AUTH_ENABLED"] or is_vercel)
     if stable_secret_required and not app.config.get("SECRET_KEY"):
         raise DataValidationError(
@@ -164,12 +168,29 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     state = _load_master_state(app)
     app.extensions["esurat_data"] = state
     app.extensions["auth_users"] = auth_users
-    app.extensions["template_hashes"] = _validate_templates(Path(app.config["TEMPLATE_DIR"]))
+    builtin_template_hashes = _validate_templates(Path(app.config["TEMPLATE_DIR"]))
+    app.extensions["builtin_template_hashes"] = builtin_template_hashes
+    app.extensions["template_hashes"] = dict(builtin_template_hashes)
+    app.extensions["letter_registry"] = dict(JENIS_SURAT)
     app.jinja_env.globals["csrf_token"] = _csrf_token
     database_lock = threading.Lock()
     login_attempts: dict[str, deque[float]] = defaultdict(deque)
     login_attempts_lock = threading.Lock()
     app.extensions["database_initialized"] = False
+
+    def refresh_custom_templates() -> None:
+        registry = dict(JENIS_SURAT)
+        custom_templates = load_custom_templates(app.config["DATABASE"])
+        registry.update(custom_templates)
+        hashes = dict(app.extensions["builtin_template_hashes"])
+        hashes.update(
+            {key: str(info["template_hash"]) for key, info in custom_templates.items()}
+        )
+        app.extensions["letter_registry"] = registry
+        app.extensions["template_hashes"] = hashes
+
+    def letter_registry() -> dict[str, dict[str, Any]]:
+        return app.extensions["letter_registry"]
 
     def ensure_database_initialized() -> None:
         if app.extensions["database_initialized"]:
@@ -181,6 +202,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                     verify_postgres_runtime(str(database))
                 else:
                     init_db(database)
+                refresh_custom_templates()
                 app.extensions["database_initialized"] = True
 
     app.extensions["ensure_database"] = ensure_database_initialized
@@ -190,7 +212,6 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     @app.before_request
     def enforce_access_and_csrf():
         endpoint = request.endpoint or ""
-        public_when_authenticated = {"healthz", "api_csrf", "login", "static"}
         if app.config["AUTH_ENABLED"] and session.get("authenticated"):
             session_username = _normalize_text(session.get("username", ""))
             configured_user = auth_users.get(session_username.casefold())
@@ -202,10 +223,18 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         if not app.config["AUTH_ENABLED"]:
             if not _is_loopback_address(request.remote_addr):
                 return _json_error("Akses tanpa autentikasi hanya diizinkan dari komputer lokal", 403)
-        elif endpoint not in public_when_authenticated and not session.get("authenticated"):
+        admin_endpoints = {
+            "admin_dashboard",
+            "admin_template_delete",
+            "admin_template_upload",
+            "api_cancel_history",
+            "api_export_history",
+            "api_list_riwayat",
+        }
+        if endpoint in admin_endpoints and session.get("role") != "admin":
             if request.method == "GET" and not request.path.startswith("/api/"):
                 return redirect(url_for("login", next=request.full_path.rstrip("?")))
-            return _json_error("Autentikasi diperlukan", 401)
+            return _json_error("Akses admin diperlukan", 403, {"role": "admin diperlukan"})
 
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             supplied = (
@@ -276,12 +305,12 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         today_iso = _now().date().isoformat()
         registry = {
             key: _public_info(key, info, today_iso, combined=False)
-            for key, info in JENIS_SURAT.items()
+            for key, info in letter_registry().items()
         }
         stats = {
             "guru": len(state["guru"]),
             "murid": len(state["murid"]),
-            "template": len(JENIS_SURAT),
+            "template": len(registry),
             "kode_arsip": len(state["kode_arsip"]),
         }
         return render_template(
@@ -290,7 +319,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             stats=stats,
             auth_enabled=bool(app.config["AUTH_ENABLED"]),
             username=session.get("username", ""),
-            role=session.get("role", "") if app.config["AUTH_ENABLED"] else "admin",
+            role=session.get("role", "user") if session.get("authenticated") else "user",
         )
 
     @app.get("/api/csrf")
@@ -300,7 +329,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 "csrf_token": _csrf_token(),
                 "authenticated": bool(session.get("authenticated")),
                 "auth_enabled": bool(app.config["AUTH_ENABLED"]),
-                "role": session.get("role", "") if session.get("authenticated") else "",
+                "role": session.get("role", "user") if session.get("authenticated") else "user",
             }
         )
 
@@ -308,11 +337,11 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     def login():
         if not app.config["AUTH_ENABLED"]:
             return redirect(url_for("index")) if request.method == "GET" else _json_error(
-                "Autentikasi tidak diaktifkan; aplikasi berjalan local-only", 400
+                "Login admin belum dikonfigurasi; aplikasi berjalan local-only", 400
             )
         if request.method == "GET":
             if session.get("authenticated"):
-                return redirect(url_for("index"))
+                return redirect(url_for("admin_dashboard"))
             return render_template("login.html", error=None, next_path=request.args.get("next", ""))
 
         data = request.get_json(silent=True) or request.form
@@ -378,7 +407,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             )
         next_path = str(request.form.get("next", ""))
         if not next_path.startswith("/") or next_path.startswith("//"):
-            next_path = url_for("index")
+            next_path = url_for("admin_dashboard")
         return redirect(next_path)
 
     @app.post("/logout")
@@ -386,7 +415,74 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         session.clear()
         if request.is_json:
             return jsonify({"ok": True})
-        return redirect(url_for("login"))
+        return redirect(url_for("index"))
+
+    def render_admin_dashboard(*, error: str | None = None, field_errors=None, status: int = 200):
+        custom = [
+            dict(info, key=key)
+            for key, info in letter_registry().items()
+            if info.get("is_custom")
+        ]
+        return (
+            render_template(
+                "admin.html",
+                custom_templates=custom,
+                archive_codes=state["kode_arsip"],
+                error=error,
+                field_errors=field_errors or {},
+                success=request.args.get("success", ""),
+                username=session.get("username", "admin"),
+            ),
+            status,
+        )
+
+    @app.get("/admin")
+    def admin_dashboard():
+        return render_admin_dashboard()
+
+    @app.post("/admin/templates")
+    def admin_template_upload():
+        upload = request.files.get("template_file")
+        filename = secure_filename(upload.filename or "") if upload else ""
+        content = upload.read(MAX_TEMPLATE_BYTES + 1) if upload else b""
+        if filename and not filename.casefold().endswith(".docx"):
+            return render_admin_dashboard(
+                error="Template belum valid",
+                field_errors={"template_file": "file harus berformat .docx"},
+                status=422,
+            )
+        try:
+            template = validate_custom_template(
+                request.form,
+                content,
+                set(state["kode_by_value"]),
+            )
+            if template["key"] in JENIS_SURAT:
+                raise RequestValidationError(
+                    "Template belum valid",
+                    {"key": "key tersebut dipakai template bawaan dan tidak dapat ditimpa"},
+                    422,
+                )
+            save_custom_template(app.config["DATABASE"], template)
+            refresh_custom_templates()
+        except RequestValidationError as exc:
+            return render_admin_dashboard(
+                error=exc.message,
+                field_errors=exc.field_errors,
+                status=exc.status_code,
+            )
+        return redirect(url_for("admin_dashboard", success="Template berhasil disimpan"))
+
+    @app.post("/admin/templates/<key>/delete")
+    def admin_template_delete(key: str):
+        if request.form.get("confirm") != "DELETE":
+            return _json_error("Konfirmasi penghapusan diperlukan", 422)
+        info = letter_registry().get(key)
+        if info is None or not info.get("is_custom"):
+            return _json_error("Template kustom tidak ditemukan", 404)
+        delete_custom_template(app.config["DATABASE"], key)
+        refresh_custom_templates()
+        return redirect(url_for("admin_dashboard", success="Template berhasil dihapus"))
 
     @app.get("/healthz")
     def healthz():
@@ -399,7 +495,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 conn.close()
         except DATABASE_ERRORS:
             problems.append("database")
-        if len(app.extensions["template_hashes"]) != len(JENIS_SURAT):
+        if len(app.extensions["template_hashes"]) != len(letter_registry()):
             problems.append("templates")
         payload = {
             "status": "ok" if not problems else "degraded",
@@ -485,7 +581,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             raise RequestValidationError(
                 "Status riwayat tidak valid", {"status": "tidak dikenal"}
             )
-        if jenis and jenis not in JENIS_SURAT:
+        if jenis and not TEMPLATE_KEY_RE.fullmatch(jenis):
             raise RequestValidationError(
                 "Jenis surat riwayat tidak valid", {"jenis": "tidak dikenal"}
             )
@@ -628,7 +724,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
 
     @app.get("/api/fields/<jenis>")
     def api_fields(jenis: str):
-        info = JENIS_SURAT.get(jenis)
+        info = letter_registry().get(jenis)
         if info is None:
             return _json_error("Jenis surat tidak ditemukan", 404, {"jenis_surat": "tidak terdaftar"})
         return jsonify(_public_info(jenis, info, _now().date().isoformat(), combined=True))
@@ -640,11 +736,16 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             validated["jenis"], validated["info"], validated["normalized"]["tanggal_surat"], combined=True
         )
         person = _public_person(validated["person"], validated["info"]["kategori"], directory=True)
+        people = [
+            _public_person(item, validated["info"]["kategori"], directory=True)
+            for item in validated["people"]
+        ]
         return jsonify(
             {
                 "info": info,
                 "context": validated["context"],
                 "person": person,
+                "students": people if int(validated["info"].get("max_people", 1)) > 1 else [],
                 "signer": validated["signer"],
                 "request_id": validated["normalized"]["request_id"],
                 "preview_notice": "Ringkasan tervalidasi; nomor otomatis dialokasikan saat unduh.",
@@ -672,6 +773,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             _mark_letter_status(reservation["id"], "generated")
 
         safe_name = secure_filename(validated["person"]["nama"]) or "personel"
+        if len(validated["people"]) > 1:
+            safe_name = f"{safe_name}-dan-{len(validated['people']) - 1}-siswa"
         filename = f"{validated['jenis']}_{safe_name}.docx"[:180]
         response = send_file(
             buf,

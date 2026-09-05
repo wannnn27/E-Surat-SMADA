@@ -2,7 +2,7 @@
 
 E-Surat SMADA adalah aplikasi internal Tata Usaha untuk membuat DOCX surat dari
 data master resmi. Aplikasi memvalidasi identitas, mengalokasikan nomor secara
-transaksional, mencatat operator, dan menyediakan riwayat yang dapat dicari,
+transaksional, mencatat aktor, dan menyediakan riwayat yang dapat dicari,
 dibatalkan tanpa memakai ulang nomor, serta diekspor ke CSV.
 
 > **Status rilis:** kode saat ini adalah kandidat **pilot internal terbatas**,
@@ -15,7 +15,8 @@ dibatalkan tanpa memakai ulang nomor, serta diekspor ke CSV.
 
 ## Cakupan fitur
 
-Tujuh dari 25 dokumen bisnis telah menjadi template dinamis:
+Tujuh template bawaan telah menjadi template dinamis; administrator juga dapat
+menambahkan template DOCX sendiri dari dashboard `/admin`:
 
 | Kategori | Jenis surat | Penandatangan |
 | --- | --- | --- |
@@ -25,7 +26,7 @@ Tujuh dari 25 dokumen bisnis telah menjadi template dinamis:
 | Guru/staf | Surat tugas | Kepala Sekolah |
 | Guru/staf | Surat keterangan | Kepala Sekolah |
 | Siswa | Izin tidak masuk | Orang tua/wali |
-| Siswa | Dispensasi kegiatan | Kepala Sekolah |
+| Siswa (1–3 siswa/surat) | Dispensasi kegiatan | Kepala Sekolah |
 
 Delapan belas DOCX di `templates_surat/legacy/` belum aktif dan tidak boleh
 dianggap siap generate. Ringkasan layar juga bukan pratinjau visual Word; DOCX
@@ -33,14 +34,14 @@ tetap wajib diperiksa sebelum diterbitkan.
 
 Kontrol yang tersedia pada kandidat ini:
 
-- akun individual dari file privat dengan role `admin`, `operator`, dan
-  `reviewer`;
-- session 8 jam, login throttling, CSRF, cookie aman, dan retry token CSRF satu
-  kali di browser;
+- role `user` tanpa login untuk membuat surat dan akun privat role `admin` untuk
+  riwayat, pembatalan, nomor manual, serta pengelolaan template;
+- session admin 8 jam, login throttling, CSRF, cookie aman, dan retry token CSRF
+  satu kali di browser;
 - nomor otomatis unik/idempoten pada satu instance SQLite atau PostgreSQL;
 - nomor manual hanya untuk admin;
-- audit operator, pencarian/filter/pagination riwayat, pembatalan bernomor, dan
-  ekspor CSV;
+- audit aktor, pencarian/filter/pagination riwayat admin, pembatalan bernomor,
+  ekspor CSV, dan template tambahan persisten di database privat;
 - fail-fast bila data/template/database persisten tidak tersedia;
 - CI dengan fixture sintetis dan pemeriksaan agar data operasional tidak masuk
   kembali ke Git.
@@ -56,7 +57,8 @@ Cloud: browser --> HTTPS Vercel --> Flask Function --> Supabase PostgreSQL
 
 SQLite tetap ditujukan untuk satu proses dan tidak boleh ditempatkan pada network
 share. Vercel hanya didukung bila `DATABASE_URL` menunjuk PostgreSQL persisten dan
-autentikasi serta secret stabil aktif. Tanpa PostgreSQL aplikasi menolak startup;
+akun admin serta secret stabil aktif. Pengguna umum tetap tidak perlu login.
+Tanpa PostgreSQL aplikasi menolak startup;
 fallback database demo/sementara sudah dihapus.
 
 ## Instalasi pengembangan
@@ -141,8 +143,8 @@ ESURAT_NUMBER_SUFFIX=SMADA
 ESURAT_AUTO_MIGRATE_DATABASE=0
 ```
 
-Kredensial bootstrap tunggal hanya untuk setup awal. Akun individual operator,
-reviewer, dan admin tetap menjadi gate sebelum pilot TU.
+Kredensial bootstrap tunggal dapat dipakai sebagai akun admin. Tidak ada akun
+untuk pengguna umum karena role `user` diberikan otomatis tanpa login.
 
 Untuk provisioning awal tanpa menyalin secret ke chat atau command history,
 hubungkan folder ke project Vercel lalu jalankan prompt lokal berikut. Script
@@ -153,13 +155,14 @@ rollback, dan menyimpan seluruh environment hanya untuk Production:
 python scripts/provision_vercel.py --project-ref <project-ref> --region <region>
 ```
 
-Jalankan migrasi `supabase/migrations/20260829174500_create_esurat_runtime_role.sql`
-sebelum provisioning. Password database Supabase hanya dipakai selama proses dan
-tidak disimpan; password login admin dipilih oleh administrator pada prompt lokal.
+Jalankan seluruh migrasi di `supabase/migrations/` secara berurutan, termasuk
+migrasi role runtime dan tabel `custom_templates`, sebelum provisioning. Password
+database Supabase hanya dipakai selama proses dan tidak disimpan; password login
+admin dipilih oleh administrator pada prompt lokal.
 
 ## Akun dan secret
 
-Buat hash untuk setiap pengguna pada mesin admin. Script memakai input password
+Buat hash untuk setiap administrator pada mesin admin. Script memakai input password
 tersembunyi dan konfirmasi sehingga plaintext tidak masuk command history:
 
 ```powershell
@@ -171,18 +174,6 @@ Simpan akun di `D:\E-Surat-Private\config\users.json`, bukan di Git:
 
 ```json
 [
-  {
-    "username": "operator-tu-1",
-    "password_hash": "<hash-yang-dihasilkan>",
-    "role": "operator",
-    "active": true
-  },
-  {
-    "username": "pemeriksa-tu-1",
-    "password_hash": "<hash-yang-dihasilkan>",
-    "role": "reviewer",
-    "active": true
-  },
   {
     "username": "admin-esurat",
     "password_hash": "<hash-yang-dihasilkan>",
@@ -207,13 +198,15 @@ python app.py
 Jangan mengubah `ESURAT_SECRET_KEY` pada restart biasa. Perubahan secret memang
 mengakhiri semua session/token CSRF. Browser menangani token CSRF kedaluwarsa
 dengan meminta token baru dan mengulangi satu request; jika session login sudah
-berakhir, pengguna tetap harus login ulang. Lihat seluruh variabel di
+berakhir, administrator harus login ulang. Pengguna umum tetap dapat memakai
+fitur pembuatan surat. Lihat seluruh variabel di
 [.env.example](.env.example).
 
 ## Menjalankan dan memeriksa
 
-Untuk evaluasi satu PC, `ESURAT_HOST=127.0.0.1` tanpa autentikasi masih didukung.
-Request dari alamat non-loopback akan ditolak.
+Untuk evaluasi satu PC, `ESURAT_HOST=127.0.0.1` tanpa akun admin masih didukung.
+Mode tersebut tidak menyediakan dashboard admin dan request dari alamat
+non-loopback akan ditolak.
 
 ```powershell
 python app.py
@@ -221,6 +214,8 @@ python app.py
 
 Buka `http://127.0.0.1:5000` dan cek health lokal di `/healthz`. Endpoint health
 tidak menampilkan jumlah guru/siswa dan tetap harus dibatasi pada reverse proxy.
+Pengguna membuat surat langsung dari `/`; administrator memilih **Login Admin**
+dan mengelola template dari `/admin`.
 
 Pemeriksaan kandidat rilis:
 

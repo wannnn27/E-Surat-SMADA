@@ -13,7 +13,7 @@
       <div class="login-brand-mark" aria-hidden="true">S</div>
       <div>
         <h1 id="login-title">E-Surat SMADA</h1>
-        <p>Akses khusus petugas tata usaha</p>
+        <p>Akses khusus administrator</p>
       </div>
     </div>
 
@@ -32,11 +32,11 @@
         Password
         <input name="password" type="password" autocomplete="current-password" required maxlength="256">
       </label>
-      <button class="btn-bottom-navy" type="submit">Masuk ke aplikasi</button>
+      <button class="btn-bottom-navy" type="submit">Masuk sebagai admin</button>
     </form>
 
     <p class="login-help">
-      Data guru dan murid bersifat terbatas. Jangan membagikan akun atau membuka aplikasi ini ke internet publik.
+      Pengguna umum tidak perlu login. <a href="{{ url_for('index') }}">Kembali ke halaman pembuatan surat</a>.
     </p>
   </main>
 </body>

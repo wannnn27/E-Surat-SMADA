@@ -153,6 +153,7 @@ JENIS_SURAT: dict[str, dict[str, Any]] = {
         "template": "dispensasi_murid.docx",
         "default_kode": "400.3.8.10",
         "signer": "kepsek",
+        "max_people": 3,
         "fields": [
             {"name": "nama_kegiatan", "label": "Nama Kegiatan", "type": "text", "max_length": 200},
             {"name": "penyelenggara", "label": "Penyelenggara", "type": "text", "max_length": 200},

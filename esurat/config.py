@@ -26,12 +26,15 @@ WIB = timezone(timedelta(hours=7), name="Asia/Jakarta")
 MAX_QUERY_LENGTH = 100
 MAX_ID_LENGTH = 24
 MAX_TEXT_LENGTH = 500
+MAX_DISPENSATION_STUDENTS = 3
+MAX_TEMPLATE_BYTES = 4 * 1024 * 1024
 AUTO_NUMBER_PREVIEW = "Otomatis saat unduh"
 REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,63}$")
 ARCHIVE_CODE_RE = re.compile(r"^\d+(?:\.\d+)*$")
 CUSTOM_NUMBER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9./ _-]{2,99}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 UNRESOLVED_TOKEN_RE = re.compile(r"(?:\{\{|\{%|\{#|\$\{)")
+TEMPLATE_KEY_RE = re.compile(r"^[a-z][a-z0-9_]{2,49}$")
 
 BULAN_ID = [
     "",

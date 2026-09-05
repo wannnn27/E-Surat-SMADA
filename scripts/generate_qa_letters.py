@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 import docx
+from werkzeug.datastructures import MultiDict
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,13 +35,13 @@ PROTECTED_DATABASES = (
 UNRESOLVED_MARKERS = ("{{", "{%", "{#", "${")
 
 EXPECTED_TABLE_ROWS = {
-    "izin_guru": 8,
-    "cuti_guru": 10,
-    "sakit_guru": 8,
-    "surat_tugas_guru": 7,
-    "surat_keterangan_guru": 6,
-    "izin_murid": 7,
-    "dispensasi_murid": 9,
+    "izin_guru": (8,),
+    "cuti_guru": (10,),
+    "sakit_guru": (8,),
+    "surat_tugas_guru": (7,),
+    "surat_keterangan_guru": (6,),
+    "izin_murid": (7,),
+    "dispensasi_murid": (4, 6),
 }
 
 CASE_FIELDS = {
@@ -95,7 +96,12 @@ def _file_fingerprint(path: Path) -> tuple[int, int, str] | None:
     return stat.st_size, stat.st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _assert_valid_docx(payload: bytes, jenis: str, expected_signer: dict[str, str], subject_name: str) -> None:
+def _assert_valid_docx(
+    payload: bytes,
+    jenis: str,
+    expected_signer: dict[str, str],
+    subject_names: list[str],
+) -> None:
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
         broken = archive.testzip()
         if broken:
@@ -110,12 +116,11 @@ def _assert_valid_docx(payload: bytes, jenis: str, expected_signer: dict[str, st
             raise AssertionError(f"{jenis}: token belum terisi: {unresolved}")
 
     document = docx.Document(io.BytesIO(payload))
-    if len(document.tables) != 1:
-        raise AssertionError(f"{jenis}: tabel={len(document.tables)}, seharusnya 1")
-    if len(document.tables[0].rows) != EXPECTED_TABLE_ROWS[jenis]:
+    expected_rows = EXPECTED_TABLE_ROWS[jenis]
+    actual_rows = tuple(len(table.rows) for table in document.tables)
+    if actual_rows != expected_rows:
         raise AssertionError(
-            f"{jenis}: baris tabel={len(document.tables[0].rows)}, "
-            f"seharusnya {EXPECTED_TABLE_ROWS[jenis]}"
+            f"{jenis}: baris tabel={actual_rows}, seharusnya {expected_rows}"
         )
 
     top_level = [paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text.strip()]
@@ -135,8 +140,9 @@ def _assert_valid_docx(payload: bytes, jenis: str, expected_signer: dict[str, st
         raise AssertionError(f"{jenis}: NIP penandatangan tidak ditemukan")
     if not expected_id_line and any(text.startswith("NIP.") for text in signature):
         raise AssertionError(f"{jenis}: baris NIP seharusnya tidak ditampilkan")
-    if subject_name != expected_signer["nama"] and subject_name in signature:
-        raise AssertionError(f"{jenis}: subjek surat keliru menjadi penandatangan")
+    for subject_name in subject_names:
+        if subject_name != expected_signer["nama"] and subject_name in signature:
+            raise AssertionError(f"{jenis}: subjek surat keliru menjadi penandatangan")
 
 
 def _expected_signer(jenis: str, info: dict, person: dict, state: dict, fields: dict) -> dict[str, str]:
@@ -180,6 +186,7 @@ def main() -> None:
             kepsek_nip = state["kepsek"]["nip"]
             guru = next(record for record in state["guru"] if record["nip"] != kepsek_nip)
             murid = state["murid"][0]
+            dispensasi_students = state["murid"][:3]
 
             with qa_app.test_client() as client:
                 csrf_response = client.get("/api/csrf")
@@ -201,13 +208,22 @@ def main() -> None:
                         "kode_arsip": info["default_kode"],
                         **fields,
                     }
+                    if jenis == "dispensasi_murid":
+                        form = MultiDict(
+                            [*form.items(), *(("student_ids", item["nis"]) for item in dispensasi_students)]
+                        )
                     response = client.post("/generate", data=form)
                     if response.status_code != 200:
                         detail = response.get_json(silent=True) or response.get_data(as_text=True)
                         raise AssertionError(f"{jenis}: HTTP {response.status_code}: {detail}")
 
                     expected_signer = _expected_signer(jenis, info, person, state, fields)
-                    _assert_valid_docx(response.data, jenis, expected_signer, person["nama"])
+                    subject_names = (
+                        [item["nama"] for item in dispensasi_students]
+                        if jenis == "dispensasi_murid"
+                        else [person["nama"]]
+                    )
+                    _assert_valid_docx(response.data, jenis, expected_signer, subject_names)
                     output_path = OUTPUT_DIR / f"{jenis}.docx"
                     output_path.write_bytes(response.data)
                     manifest.append(

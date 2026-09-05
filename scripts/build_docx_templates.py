@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 import docx
+from docxtpl import DocxTemplate
 from docx.enum.section import WD_ORIENT
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -53,6 +54,7 @@ class TemplateSpec:
     opening: str
     rows: tuple[tuple[str, str], ...]
     closing: str
+    multi_students: bool = False
 
 
 TEMPLATE_SPECS: tuple[TemplateSpec, ...] = (
@@ -155,9 +157,6 @@ TEMPLATE_SPECS: tuple[TemplateSpec, ...] = (
         title="SURAT DISPENSASI SISWA",
         opening="Kepala SMA Negeri 2 Wonosari memberikan dispensasi kepada siswa:",
         rows=(
-            ("Nama Siswa", "{{ nama }}"),
-            ("NIS / NISN", "{{ nis }} / {{ nisn }}"),
-            ("Kelas", "Kelas {{ kelas }}"),
             ("Nama Kegiatan", "{{ nama_kegiatan }}"),
             ("Penyelenggara", "{{ penyelenggara }}"),
             ("Tempat Kegiatan", "{{ tempat_kegiatan }}"),
@@ -166,6 +165,7 @@ TEMPLATE_SPECS: tuple[TemplateSpec, ...] = (
             ("Uraian / Keperluan", "{{ keperluan }}"),
         ),
         closing="Demikian surat dispensasi ini dibuat untuk dipergunakan sebagaimana mestinya.",
+        multi_students=True,
     ),
 )
 
@@ -291,7 +291,7 @@ def remove_cell_borders(cell) -> None:
         border.set(qn("w:val"), "nil")
 
 
-def configure_cell(cell, width_dxa: int) -> None:
+def configure_cell(cell, width_dxa: int, *, borderless: bool = True) -> None:
     cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
     tc_pr = cell._tc.get_or_add_tcPr()
     _set_dxa(_get_or_add(tc_pr, "w:tcW"), width_dxa)
@@ -299,15 +299,21 @@ def configure_cell(cell, width_dxa: int) -> None:
     tc_mar = _get_or_add(tc_pr, "w:tcMar")
     for side, value in CELL_MARGIN_DXA.items():
         _set_dxa(_get_or_add(tc_mar, f"w:{side}"), value)
-    remove_cell_borders(cell)
+    if borderless:
+        remove_cell_borders(cell)
 
 
-def configure_table_geometry(table) -> None:
+def configure_table_geometry(
+    table,
+    widths: Sequence[int] = TABLE_COLUMN_WIDTHS_DXA,
+    *,
+    bordered: bool = False,
+) -> None:
     table.alignment = WD_TABLE_ALIGNMENT.LEFT
     table.autofit = False
 
     tbl_pr = table._tbl.tblPr
-    _set_dxa(_get_or_add(tbl_pr, "w:tblW"), TABLE_WIDTH_DXA)
+    _set_dxa(_get_or_add(tbl_pr, "w:tblW"), sum(widths))
 
     tbl_ind = _get_or_add(tbl_pr, "w:tblInd")
     _set_dxa(tbl_ind, 0)
@@ -321,12 +327,15 @@ def configure_table_geometry(table) -> None:
     tbl_borders = _get_or_add(tbl_pr, "w:tblBorders")
     for border_name in ("top", "left", "bottom", "right", "insideH", "insideV"):
         border = _get_or_add(tbl_borders, f"w:{border_name}")
-        border.set(qn("w:val"), "nil")
+        border.set(qn("w:val"), "single" if bordered else "nil")
+        if bordered:
+            border.set(qn("w:sz"), "4")
+            border.set(qn("w:color"), "808080")
 
     tbl_grid = table._tbl.tblGrid
     for grid_col in list(tbl_grid):
         tbl_grid.remove(grid_col)
-    for width in TABLE_COLUMN_WIDTHS_DXA:
+    for width in widths:
         grid_col = OxmlElement("w:gridCol")
         grid_col.set(qn("w:w"), str(width))
         tbl_grid.append(grid_col)
@@ -351,6 +360,27 @@ def add_key_value_table(doc: docx.Document, rows: Sequence[tuple[str, str]]) -> 
             paragraph.paragraph_format.line_spacing = 1.15
             run = paragraph.add_run(text)
             set_run_font(run, bold=(index == 2 and label in emphasized_labels))
+
+
+def add_students_table(doc: docx.Document) -> None:
+    widths = (700, 3300, 3100, 1271)
+    table = doc.add_table(rows=4, cols=4)
+    configure_table_geometry(table, widths, bordered=True)
+    row_values = (
+        ("No.", "Nama Siswa", "NIS / NISN", "Kelas"),
+        ("{%tr for student in students %}", "", "", ""),
+        ("{{ loop.index }}", "{{ student.nama }}", "{{ student.nis }} / {{ student.nisn }}", "{{ student.kelas }}"),
+        ("{%tr endfor %}", "", "", ""),
+    )
+    for row_index, (row, values) in enumerate(zip(table.rows, row_values)):
+        for cell, width, value in zip(row.cells, widths, values):
+            configure_cell(cell, width, borderless=False)
+            paragraph = cell.paragraphs[0]
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER if row_index != 2 else WD_ALIGN_PARAGRAPH.LEFT
+            paragraph.paragraph_format.space_before = Pt(0)
+            paragraph.paragraph_format.space_after = Pt(0)
+            run = paragraph.add_run(value)
+            set_run_font(run, bold=(row_index == 0))
 
 
 def add_signature(doc: docx.Document) -> None:
@@ -435,6 +465,9 @@ def build_template(spec: TemplateSpec) -> Path:
         space_after_pt=6,
         keep_with_next=True,
     )
+    if spec.multi_students:
+        add_students_table(doc)
+        add_text_paragraph(doc, "Rincian kegiatan:", space_before_pt=6, keep_with_next=True)
     add_key_value_table(doc, spec.rows)
     add_text_paragraph(
         doc,
@@ -462,6 +495,8 @@ def expected_variables(spec: TemplateSpec) -> set[str]:
     source_values = [spec.title, spec.opening, spec.closing, "{{ nomor_surat }}"]
     source_values.extend(value for _, value in spec.rows)
     variables = _variables_in(source_values)
+    if spec.multi_students:
+        variables.add("students")
     variables.update(
         {
             "tanggal_surat",
@@ -476,17 +511,21 @@ def expected_variables(spec: TemplateSpec) -> set[str]:
 
 def audit_template(path: Path, spec: TemplateSpec) -> None:
     doc = docx.Document(path)
-    if len(doc.tables) != 1:
-        raise RuntimeError(f"{path.name}: diharapkan satu tabel data, ditemukan {len(doc.tables)}.")
-    if len(doc.tables[0].rows) != len(spec.rows):
+    expected_table_count = 2 if spec.multi_students else 1
+    if len(doc.tables) != expected_table_count:
         raise RuntimeError(
-            f"{path.name}: baris tabel {len(doc.tables[0].rows)}, seharusnya {len(spec.rows)}."
+            f"{path.name}: diharapkan {expected_table_count} tabel data, ditemukan {len(doc.tables)}."
+        )
+    detail_table = doc.tables[-1]
+    if len(detail_table.rows) != len(spec.rows):
+        raise RuntimeError(
+            f"{path.name}: baris tabel {len(detail_table.rows)}, seharusnya {len(spec.rows)}."
         )
 
     with zipfile.ZipFile(path) as package:
         document_xml = package.read("word/document.xml").decode("utf-8")
 
-    actual_variables = set(re.findall(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)", document_xml))
+    actual_variables = set(DocxTemplate(str(path)).get_undeclared_template_variables())
     if actual_variables != expected_variables(spec):
         missing = sorted(expected_variables(spec) - actual_variables)
         unexpected = sorted(actual_variables - expected_variables(spec))
@@ -496,12 +535,13 @@ def audit_template(path: Path, spec: TemplateSpec) -> None:
     if drawing_count != 1:
         raise RuntimeError(f"{path.name}: kop harus memiliki satu drawing; ditemukan {drawing_count}.")
 
-    tbl_width = re.search(r'<w:tblW\b[^>]*\bw:w="(\d+)"', document_xml)
+    detail_xml = detail_table._tbl.xml
+    tbl_width = re.search(r'<w:tblW\b[^>]*\bw:w="(\d+)"', detail_xml)
     grid_widths = tuple(
         int(value)
-        for value in re.findall(r'<w:gridCol w:w="(\d+)"', document_xml)[:3]
+        for value in re.findall(r'<w:gridCol w:w="(\d+)"', detail_xml)[:3]
     )
-    first_row = re.search(r"<w:tr(?:\s[^>]*)?>.*?</w:tr>", document_xml)
+    first_row = re.search(r"<w:tr(?:\s[^>]*)?>.*?</w:tr>", detail_xml, re.DOTALL)
     cell_widths = ()
     if first_row:
         cell_widths = tuple(

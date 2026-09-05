@@ -70,8 +70,8 @@ ekuivalen dan lengkapi seluruh item berikut:
 - [x] RLS aktif dan role `anon`, `authenticated`, `service_role` tidak memiliki
   privilege pada tabel operasional.
 - [ ] MCP writable dicabut atau diubah read-only sebelum PII produksi dipakai.
-- [ ] Minimal akun individual admin/operator/reviewer tersedia; akun bootstrap
-  tunggal tidak dipakai untuk operasi harian.
+- [ ] Minimal satu akun admin individual tersedia dan tidak dipakai bersama;
+  pengguna umum telah diuji tanpa login.
 
 ## D. Verifikasi teknis kandidat
 
@@ -94,8 +94,8 @@ node --check static/app.js
 - [ ] Startup Vercel tanpa PostgreSQL gagal; startup dengan Supabase dan secret
   lengkap lulus.
 - [ ] Login salah/rate limit, logout, session expiry, dan retry CSRF diuji browser.
-- [ ] Operator tidak dapat memakai nomor manual atau membatalkan.
-- [ ] Admin dapat nomor manual; reviewer/admin dapat membatalkan dengan alasan.
+- [ ] Pengguna umum tidak dapat memakai nomor manual atau membatalkan.
+- [ ] Admin dapat nomor manual dan membatalkan dengan alasan.
 - [ ] Filter, pagination, CSV, idempotensi, dan concurrency cocok dengan database
   target serta register.
 
@@ -130,7 +130,7 @@ node --check static/app.js
 
 ## G. Pelatihan dan pilot
 
-- [ ] Operator, reviewer, admin, pemilik teknis, dan pengganti telah ditetapkan.
+- [ ] Pengguna TU, admin, pemilik teknis, dan pengganti telah ditetapkan.
 - [ ] Hak akses setiap akun disetujui dan password awal diganti privat.
 - [ ] TU dilatih memilih identitas, memeriksa ringkasan/Word, mengecek riwayat,
   mengekspor, membatalkan, logout, dan melaporkan insiden.

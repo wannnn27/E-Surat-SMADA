@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light" data-role="admin">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Admin - E-Surat SMADA</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="admin-page">
+  <main class="admin-shell">
+    <header class="admin-header">
+      <div>
+        <p class="admin-eyebrow">E-Surat SMADA</p>
+        <h1>Pengelolaan Admin</h1>
+        <p>Masuk sebagai {{ username }}. Pengguna umum tetap dapat membuat surat tanpa login.</p>
+      </div>
+      <div class="admin-header-actions">
+        <a class="btn-bottom-cancel" href="{{ url_for('index') }}">Kembali ke aplikasi</a>
+        <form method="post" action="{{ url_for('logout') }}">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button class="btn-bottom-navy" type="submit">Keluar</button>
+        </form>
+      </div>
+    </header>
+
+    {% if success %}<p class="admin-alert success" role="status">{{ success }}</p>{% endif %}
+    {% if error %}<p class="admin-alert error" role="alert">{{ error }}</p>{% endif %}
+
+    <section class="admin-grid" aria-label="Pengelolaan template">
+      <article class="admin-card">
+        <h2><i class="fa-solid fa-file-circle-plus"></i> Tambah template DOCX</h2>
+        <p>Gunakan placeholder minimal <code>{{ '{{ nomor_surat }}' }}</code>, <code>{{ '{{ tanggal_surat }}' }}</code>, dan <code>{{ '{{ nama }}' }}</code>. Placeholder tambahan otomatis menjadi field formulir.</p>
+        <form class="admin-template-form" method="post" action="{{ url_for('admin_template_upload') }}" enctype="multipart/form-data">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <label>Key template
+            <input name="key" required maxlength="50" pattern="[a-z][a-z0-9_]{2,49}" placeholder="contoh: rekomendasi_siswa">
+            {% if field_errors.key %}<small class="field-error">{{ field_errors.key }}</small>{% endif %}
+          </label>
+          <label>Nama template
+            <input name="label" required maxlength="120" placeholder="Surat Rekomendasi Siswa">
+            {% if field_errors.label %}<small class="field-error">{{ field_errors.label }}</small>{% endif %}
+          </label>
+          <label class="admin-field-full">Deskripsi
+            <textarea name="description" required maxlength="300" rows="2" placeholder="Jelaskan kegunaan template"></textarea>
+            {% if field_errors.description %}<small class="field-error">{{ field_errors.description }}</small>{% endif %}
+          </label>
+          <label>Kategori
+            <select name="category" required>
+              <option value="guru">Guru / Staff</option>
+              <option value="murid">Siswa / Murid</option>
+            </select>
+            {% if field_errors.category %}<small class="field-error">{{ field_errors.category }}</small>{% endif %}
+          </label>
+          <label>Penandatangan
+            <select name="signer" required>
+              <option value="kepsek">Kepala Sekolah</option>
+              <option value="pemohon">Pemohon</option>
+              <option value="wali">Orang Tua / Wali (murid)</option>
+            </select>
+            {% if field_errors.signer %}<small class="field-error">{{ field_errors.signer }}</small>{% endif %}
+          </label>
+          <label>Kode klasifikasi
+            <select name="default_code" required>
+              {% for item in archive_codes %}
+                <option value="{{ item.kode }}">{{ item.kode }} - {{ item.keterangan }}</option>
+              {% endfor %}
+            </select>
+            {% if field_errors.default_code %}<small class="field-error">{{ field_errors.default_code }}</small>{% endif %}
+          </label>
+          <label>File template (.docx, maks. 4 MB)
+            <input name="template_file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+            {% if field_errors.template_file %}<small class="field-error">{{ field_errors.template_file }}</small>{% endif %}
+          </label>
+          <div class="admin-field-full">
+            <button class="btn-bottom-navy" type="submit"><i class="fa-solid fa-upload"></i> Simpan template</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="admin-card">
+        <h2><i class="fa-solid fa-folder-open"></i> Template tambahan</h2>
+        {% if custom_templates %}
+          <div class="admin-template-list">
+            {% for item in custom_templates %}
+              <div class="admin-template-item">
+                <div>
+                  <strong>{{ item.label }}</strong>
+                  <small>{{ item.key }} · {{ item.kategori | upper }} · {{ item.default_kode }}</small>
+                  <p>{{ item.deskripsi }}</p>
+                </div>
+                <form method="post" action="{{ url_for('admin_template_delete', key=item.key) }}">
+                  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                  <label class="delete-confirm"><input type="checkbox" name="confirm" value="DELETE" required> Konfirmasi hapus</label>
+                  <button class="btn-danger-outline" type="submit">Hapus</button>
+                </form>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="admin-empty">Belum ada template tambahan. Tujuh template bawaan tetap aktif dan tidak dapat dihapus dari panel ini.</p>
+        {% endif %}
+      </article>
+    </section>
+  </main>
+</body>
+</html>

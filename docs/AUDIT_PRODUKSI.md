@@ -37,12 +37,12 @@ Ringkasnya:
 | Guard kebocoran | `scripts/check_no_sensitive_tracking.py` dan gate CI | Selesai |
 | Penyimpanan | `ESURAT_DATA_ROOT`/override privat; startup gagal bila data/DB tidak tersedia | Selesai |
 | Serverless | Vercel tanpa PostgreSQL ditolak; fallback demo dihapus; Supabase memakai schema privat dan role runtime minimum | Migrasi remote/policy selesai; secret dan deployment Vercel belum diverifikasi |
-| Autentikasi | File akun privat; role admin/operator/reviewer; session 1–24 jam | Selesai |
+| Autentikasi | Pengguna umum tanpa login; file akun privat khusus role admin; session 1–24 jam | Selesai |
 | Brute force | Batas login per alamat+username dalam satu proses | Selesai untuk arsitektur satu instance |
 | CSRF | Secret stabil diwajibkan saat auth; browser refresh token dan retry satu kali | Selesai |
-| Audit aktor | Operator dan role dicatat per nomor | Selesai untuk record baru |
+| Audit aktor | Aktor `public/user` atau akun admin dicatat per nomor | Selesai untuk record baru |
 | Nomor manual | Hanya admin | Selesai |
-| Pembatalan | Admin/reviewer; alasan, waktu, aktor; nomor tidak digunakan ulang | Selesai |
+| Pembatalan | Admin; alasan, waktu, aktor; nomor tidak digunakan ulang | Selesai |
 | Riwayat | Search, filter, pagination, status, aktor, CSV | Selesai |
 | Health | Tidak lagi membuka hitungan data master | Selesai; endpoint tetap perlu dibatasi jaringan |
 | QA sintetis | QA tujuh DOCX memakai fixture, bukan master sekolah | Selesai |
@@ -60,7 +60,7 @@ Ringkasnya:
 - ringkasan data sebelum generate;
 - generate DOCX dengan nomor otomatis unik dan idempotent;
 - tujuh pola penandatangan sesuai registry;
-- akun individual dan jejak operator;
+- akun admin individual dan jejak aktor user/admin;
 - riwayat, filter, pagination, ekspor CSV;
 - pembatalan nomor tanpa menghapus/memakai ulang nomor;
 - backup master/SQLite dan import Excel tervalidasi.
@@ -75,7 +75,7 @@ Ringkasnya:
 | `surat_tugas_guru` | Surat tugas | Kepala Sekolah |
 | `surat_keterangan_guru` | Surat keterangan | Kepala Sekolah |
 | `izin_murid` | Izin tidak masuk siswa | Orang tua/wali |
-| `dispensasi_murid` | Dispensasi kegiatan siswa | Kepala Sekolah |
+| `dispensasi_murid` | Dispensasi kegiatan 1–3 siswa | Kepala Sekolah |
 
 ### Kekurangan fungsional yang perlu keputusan sekolah
 
@@ -84,8 +84,8 @@ Ringkasnya:
 2. **Koreksi/pengganti belum menjadi workflow terhubung.** Kandidat mendukung
    pembatalan bernomor; nomor pengganti dibuat sebagai surat baru dan hubungan
    keduanya dicatat melalui SOP/register eksternal.
-3. **Approval dua tahap belum digital.** Role reviewer dapat membatalkan dan
-   mengaudit, tetapi belum ada tombol approve sebelum terbit. Untuk pilot,
+3. **Approval dua tahap belum digital.** Admin dapat membatalkan dan audit aktor
+   tersedia, tetapi belum ada tombol approve sebelum terbit. Untuk pilot,
    pemeriksaan Word dua orang adalah kontrol prosedural.
 4. **Arsip dokumen final tidak disimpan aplikasi.** Riwayat hanya metadata;
    DOCX/PDF final harus masuk sistem/folder arsip resmi sekolah.
@@ -105,7 +105,7 @@ Ringkasnya:
 | P1 | Restore/rekonsiliasi nomor belum diuji | Backup tersedia | Drill terisolasi, cocokkan register, tetapkan RPO/RTO |
 | P1 | Akurasi master/kepala sekolah | Validasi struktur tersedia | Data owner menyetujui hitungan dan sampel resmi |
 | P1 | Layout Word/print | Struktur DOCX dites otomatis | Dua pemeriksa menguji 7 jenis di Word, Print Preview, dan printer nyata |
-| P1 | SOP nomor/koreksi/pembatalan | Kontrol aplikasi tersedia | Sahkan kewenangan admin/reviewer dan prosedur register |
+| P1 | SOP nomor/koreksi/pembatalan | Kontrol aplikasi tersedia | Sahkan kewenangan admin dan prosedur register |
 | P1 | Artefak rilis | Belum ada tag/release yang disetujui | Pilih versi, hash, owner/lisensi, simpan artefak privat |
 | P2 | 18 template legacy | Tidak aktif | Prioritaskan berdasarkan kebutuhan dan migrasikan per jenis |
 | P2 | CDN eksternal | Masih dipakai | Vendor/self-host aset berlisensi dan uji offline |
