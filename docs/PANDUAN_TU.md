@@ -14,7 +14,8 @@ E-Surat saat ini hanya mendukung tujuh jenis surat otomatis:
 6. Izin tidak masuk siswa.
 7. Dispensasi kegiatan untuk satu sampai tiga siswa dalam satu surat.
 
-Administrator dapat menambahkan template DOCX lain dari dashboard `/admin`.
+Administrator memantau ringkasan operasional dari dashboard `/admin` dan dapat
+menambahkan template DOCX lain dari menu **Template Surat** (`/admin/templates`).
 
 Folder `templates_surat/active/` berisi 7 template aktif, `legacy/` berisi **18 dokumen belum aktif**, dan `master/` berisi satu master teknis kop. Jangan mengaktifkan dokumen legacy dengan mengganti nama atau menyalin tag tanpa proses migrasi dan uji pada [Audit Produksi](AUDIT_PRODUKSI.md#backlog-migrasi-18-template).
 
@@ -210,10 +211,10 @@ Lokasi Excel alternatif dapat diberikan dengan `--guru-file`, `--murid-file`, da
 
 `scripts/build_docx_templates.py` hanya membangun ulang tujuh template di `templates_surat/active/`. Ia memakai `templates_surat/master/kop_smada.docx` sebagai sumber teknis dan tidak mengaktifkan 18 template di `legacy/`.
 
-Untuk template tambahan, login sebagai admin, buka **Kelola Admin**, lalu unggah
+Untuk template tambahan, login sebagai admin, buka **Template Surat**, lalu unggah
 DOCX maksimal 4 MB. Template wajib memiliki placeholder `nomor_surat`,
 `tanggal_surat`, dan `nama`; placeholder lain otomatis menjadi field formulir.
-Template tambahan disimpan di database privat dan dapat dihapus dari dashboard
+Template tambahan disimpan di database privat dan dapat dihapus dari halaman template
 dengan konfirmasi. Template bawaan tidak dapat ditimpa atau dihapus dari panel.
 
 1. Jadwalkan maintenance dan hentikan penerbitan surat.

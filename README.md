@@ -15,8 +15,9 @@ dibatalkan tanpa memakai ulang nomor, serta diekspor ke CSV.
 
 ## Cakupan fitur
 
-Tujuh template bawaan telah menjadi template dinamis; administrator juga dapat
-menambahkan template DOCX sendiri dari dashboard `/admin`:
+Tujuh template bawaan telah menjadi template dinamis; administrator juga mendapat
+dashboard operasional di `/admin` dan dapat menambahkan template DOCX sendiri dari
+halaman `/admin/templates`:
 
 | Kategori | Jenis surat | Penandatangan |
 | --- | --- | --- |
@@ -216,7 +217,9 @@ python app.py
 Buka `http://127.0.0.1:5000` dan cek health lokal di `/healthz`. Endpoint health
 tidak menampilkan jumlah guru/siswa dan tetap harus dibatasi pada reverse proxy.
 Pengguna membuat surat langsung dari `/`; administrator memilih **Login Admin**
-dan mengelola template dari `/admin`.
+untuk membuka dashboard `/admin`. Dashboard menampilkan metrik dan aktivitas
+surat, status sistem, akses riwayat, ringkasan data master, serta halaman khusus
+pengelolaan template di `/admin/templates`.
 
 Pemeriksaan kandidat rilis:
 

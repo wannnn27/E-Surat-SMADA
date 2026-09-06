@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light" data-role="admin">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}Admin{% endblock %} - E-Surat SMADA</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="admin-page">
+  <div class="admin-app-shell">
+    <aside class="admin-sidebar">
+      <a class="admin-brand" href="{{ url_for('admin_dashboard') }}">
+        <img src="{{ url_for('static', filename='smada.png') }}" alt="Logo SMADA">
+        <span>
+          <strong>E-SURAT SMADA</strong>
+          <small>Panel Administrator</small>
+        </span>
+      </a>
+
+      <nav class="admin-nav" aria-label="Navigasi administrator">
+        <p class="admin-nav-label">Workspace</p>
+        <a class="admin-nav-item{% if active_page == 'dashboard' %} active{% endif %}" href="{{ url_for('admin_dashboard') }}"{% if active_page == 'dashboard' %} aria-current="page"{% endif %}>
+          <i class="fa-solid fa-chart-pie"></i><span>Dashboard</span>
+        </a>
+        <a class="admin-nav-item" href="{{ url_for('index', panel='riwayat') }}">
+          <i class="fa-solid fa-clock-rotate-left"></i><span>Riwayat Surat</span>
+        </a>
+        <a class="admin-nav-item{% if active_page == 'templates' %} active{% endif %}" href="{{ url_for('admin_templates') }}"{% if active_page == 'templates' %} aria-current="page"{% endif %}>
+          <i class="fa-solid fa-file-word"></i><span>Template Surat</span>
+          <span class="admin-nav-count">{{ total_template_count }}</span>
+        </a>
+        <a class="admin-nav-item{% if active_page == 'master' %} active{% endif %}" href="{{ url_for('admin_master_data') }}"{% if active_page == 'master' %} aria-current="page"{% endif %}>
+          <i class="fa-solid fa-database"></i><span>Data Master</span>
+        </a>
+
+        <p class="admin-nav-label">Aplikasi</p>
+        <a class="admin-nav-item" href="{{ url_for('index') }}">
+          <i class="fa-solid fa-pen-to-square"></i><span>Buat Surat</span>
+        </a>
+        <a class="admin-nav-item" href="{{ url_for('index', panel='kode') }}">
+          <i class="fa-solid fa-bookmark"></i><span>Kode Arsip</span>
+        </a>
+      </nav>
+
+      <div class="admin-sidebar-footer">
+        <div class="admin-user-card">
+          <span class="admin-user-avatar"><i class="fa-solid fa-user-shield"></i></span>
+          <span>
+            <strong>{{ username }}</strong>
+            <small>{{ role | upper }}</small>
+          </span>
+        </div>
+        <form method="post" action="{{ url_for('logout') }}">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button class="admin-logout" type="submit">
+            <i class="fa-solid fa-right-from-bracket"></i> Keluar
+          </button>
+        </form>
+      </div>
+    </aside>
+
+    <main class="admin-main">
+      <header class="admin-topbar">
+        <div>
+          <p class="admin-eyebrow">{% block eyebrow %}Administrator{% endblock %}</p>
+          <h1>{% block heading %}Dashboard Admin{% endblock %}</h1>
+          <p>{% block description %}Kelola operasional E-Surat SMADA dari satu tempat.{% endblock %}</p>
+        </div>
+        <div class="admin-topbar-actions">
+          {% block actions %}
+            <a class="admin-btn admin-btn-primary" href="{{ url_for('index') }}">
+              <i class="fa-solid fa-plus"></i> Buat surat
+            </a>
+          {% endblock %}
+        </div>
+      </header>
+
+      {% if success %}<p class="admin-alert success" role="status"><i class="fa-solid fa-circle-check"></i> {{ success }}</p>{% endif %}
+      {% if error %}<p class="admin-alert error" role="alert"><i class="fa-solid fa-circle-exclamation"></i> {{ error }}</p>{% endif %}
+
+      <div class="admin-content">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+</body>
+</html>

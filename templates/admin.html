@@ -1,108 +1,180 @@
-<!DOCTYPE html>
-<html lang="id" data-theme="light" data-role="admin">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="robots" content="noindex, nofollow">
-  <title>Admin - E-Surat SMADA</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body class="admin-page">
-  <main class="admin-shell">
-    <header class="admin-header">
+{% extends "admin_base.html" %}
+
+{% block title %}Dashboard Admin{% endblock %}
+{% block eyebrow %}Ringkasan operasional{% endblock %}
+{% block heading %}Dashboard Admin{% endblock %}
+{% block description %}Pantau surat, data master, dan kesiapan sistem pada {{ today_label }}.{% endblock %}
+
+{% block content %}
+  <section class="admin-metric-grid" aria-label="Ringkasan surat">
+    <article class="admin-metric-card metric-primary">
+      <span class="admin-metric-icon"><i class="fa-solid fa-envelope-open-text"></i></span>
       <div>
-        <p class="admin-eyebrow">E-Surat SMADA</p>
-        <h1>Pengelolaan Admin</h1>
-        <p>Masuk sebagai {{ username }}. Pengguna umum tetap dapat membuat surat tanpa login.</p>
+        <span class="admin-metric-label">Total surat</span>
+        <strong>{{ overview.total }}</strong>
+        <small>Seluruh riwayat tersimpan</small>
       </div>
-      <div class="admin-header-actions">
-        <a class="btn-bottom-cancel" href="{{ url_for('index') }}">Kembali ke aplikasi</a>
-        <form method="post" action="{{ url_for('logout') }}">
-          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-          <button class="btn-bottom-navy" type="submit">Keluar</button>
-        </form>
+    </article>
+    <article class="admin-metric-card metric-success">
+      <span class="admin-metric-icon"><i class="fa-solid fa-circle-check"></i></span>
+      <div>
+        <span class="admin-metric-label">Berhasil terbit</span>
+        <strong>{{ overview.status.generated }}</strong>
+        <small>{{ overview.month_total }} aktivitas bulan ini</small>
       </div>
-    </header>
+    </article>
+    <article class="admin-metric-card metric-danger">
+      <span class="admin-metric-icon"><i class="fa-solid fa-ban"></i></span>
+      <div>
+        <span class="admin-metric-label">Dibatalkan</span>
+        <strong>{{ overview.status.cancelled }}</strong>
+        <small>Nomor tetap tersimpan</small>
+      </div>
+    </article>
+    <article class="admin-metric-card metric-warning">
+      <span class="admin-metric-icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
+      <div>
+        <span class="admin-metric-label">Perlu perhatian</span>
+        <strong>{{ overview.needs_attention }}</strong>
+        <small>{{ overview.status.failed }} gagal · {{ overview.status.rendering }} diproses</small>
+      </div>
+    </article>
+  </section>
 
-    {% if success %}<p class="admin-alert success" role="status">{{ success }}</p>{% endif %}
-    {% if error %}<p class="admin-alert error" role="alert">{{ error }}</p>{% endif %}
+  <div class="admin-dashboard-grid">
+    <section class="admin-panel admin-recent-panel">
+      <div class="admin-panel-heading">
+        <div>
+          <span class="admin-section-kicker">Aktivitas</span>
+          <h2>Surat terbaru</h2>
+        </div>
+        <a class="admin-text-link" href="{{ url_for('index', panel='riwayat') }}">Lihat semua <i class="fa-solid fa-arrow-right"></i></a>
+      </div>
 
-    <section class="admin-grid" aria-label="Pengelolaan template">
-      <article class="admin-card">
-        <h2><i class="fa-solid fa-file-circle-plus"></i> Tambah template DOCX</h2>
-        <p>Gunakan placeholder minimal <code>{{ '{{ nomor_surat }}' }}</code>, <code>{{ '{{ tanggal_surat }}' }}</code>, dan <code>{{ '{{ nama }}' }}</code>. Placeholder tambahan otomatis menjadi field formulir.</p>
-        <form class="admin-template-form" method="post" action="{{ url_for('admin_template_upload') }}" enctype="multipart/form-data">
-          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-          <label>Key template
-            <input name="key" required maxlength="50" pattern="[a-z][a-z0-9_]{2,49}" placeholder="contoh: rekomendasi_siswa">
-            {% if field_errors.key %}<small class="field-error">{{ field_errors.key }}</small>{% endif %}
-          </label>
-          <label>Nama template
-            <input name="label" required maxlength="120" placeholder="Surat Rekomendasi Siswa">
-            {% if field_errors.label %}<small class="field-error">{{ field_errors.label }}</small>{% endif %}
-          </label>
-          <label class="admin-field-full">Deskripsi
-            <textarea name="description" required maxlength="300" rows="2" placeholder="Jelaskan kegunaan template"></textarea>
-            {% if field_errors.description %}<small class="field-error">{{ field_errors.description }}</small>{% endif %}
-          </label>
-          <label>Kategori
-            <select name="category" required>
-              <option value="guru">Guru / Staff</option>
-              <option value="murid">Siswa / Murid</option>
-            </select>
-            {% if field_errors.category %}<small class="field-error">{{ field_errors.category }}</small>{% endif %}
-          </label>
-          <label>Penandatangan
-            <select name="signer" required>
-              <option value="kepsek">Kepala Sekolah</option>
-              <option value="pemohon">Pemohon</option>
-              <option value="wali">Orang Tua / Wali (murid)</option>
-            </select>
-            {% if field_errors.signer %}<small class="field-error">{{ field_errors.signer }}</small>{% endif %}
-          </label>
-          <label>Kode klasifikasi
-            <select name="default_code" required>
-              {% for item in archive_codes %}
-                <option value="{{ item.kode }}">{{ item.kode }} - {{ item.keterangan }}</option>
+      {% if overview.recent %}
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Surat</th>
+                <th>Pemohon</th>
+                <th>Waktu</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in overview.recent %}
+                <tr>
+                  <td>
+                    <strong>{{ item.nomor_surat or '-' }}</strong>
+                    <small>{{ item.jenis_surat or 'Jenis surat tidak tercatat' }}</small>
+                  </td>
+                  <td>
+                    <span>{{ item.nama_pemohon or '-' }}</span>
+                    <small>{{ item.kategori | upper }} · {{ item.created_by or 'data lama' }}</small>
+                  </td>
+                  <td class="admin-table-muted">{{ item.created_at_display }}</td>
+                  <td>
+                    {% if item.status == 'generated' %}
+                      <span class="admin-status status-success">Terbit</span>
+                    {% elif item.status == 'cancelled' %}
+                      <span class="admin-status status-danger">Dibatalkan</span>
+                    {% elif item.status == 'rendering' %}
+                      <span class="admin-status status-warning">Diproses</span>
+                    {% else %}
+                      <span class="admin-status status-danger">Gagal</span>
+                    {% endif %}
+                  </td>
+                </tr>
               {% endfor %}
-            </select>
-            {% if field_errors.default_code %}<small class="field-error">{{ field_errors.default_code }}</small>{% endif %}
-          </label>
-          <label>File template (.docx, maks. 4 MB)
-            <input name="template_file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
-            {% if field_errors.template_file %}<small class="field-error">{{ field_errors.template_file }}</small>{% endif %}
-          </label>
-          <div class="admin-field-full">
-            <button class="btn-bottom-navy" type="submit"><i class="fa-solid fa-upload"></i> Simpan template</button>
-          </div>
-        </form>
-      </article>
-
-      <article class="admin-card">
-        <h2><i class="fa-solid fa-folder-open"></i> Template tambahan</h2>
-        {% if custom_templates %}
-          <div class="admin-template-list">
-            {% for item in custom_templates %}
-              <div class="admin-template-item">
-                <div>
-                  <strong>{{ item.label }}</strong>
-                  <small>{{ item.key }} · {{ item.kategori | upper }} · {{ item.default_kode }}</small>
-                  <p>{{ item.deskripsi }}</p>
-                </div>
-                <form method="post" action="{{ url_for('admin_template_delete', key=item.key) }}">
-                  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                  <label class="delete-confirm"><input type="checkbox" name="confirm" value="DELETE" required> Konfirmasi hapus</label>
-                  <button class="btn-danger-outline" type="submit">Hapus</button>
-                </form>
-              </div>
-            {% endfor %}
-          </div>
-        {% else %}
-          <p class="admin-empty">Belum ada template tambahan. Tujuh template bawaan tetap aktif dan tidak dapat dihapus dari panel ini.</p>
-        {% endif %}
-      </article>
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="admin-empty-state">
+          <span><i class="fa-regular fa-folder-open"></i></span>
+          <h3>Belum ada riwayat surat</h3>
+          <p>Surat yang berhasil dibuat akan muncul di ringkasan ini.</p>
+          <a class="admin-btn admin-btn-primary" href="{{ url_for('index') }}">Buat surat pertama</a>
+        </div>
+      {% endif %}
     </section>
-  </main>
-</body>
-</html>
+
+    <aside class="admin-dashboard-side">
+      <section class="admin-panel">
+        <div class="admin-panel-heading compact">
+          <div>
+            <span class="admin-section-kicker">Akses cepat</span>
+            <h2>Tindakan admin</h2>
+          </div>
+        </div>
+        <div class="admin-quick-actions">
+          <a href="{{ url_for('index') }}">
+            <span class="quick-action-icon quick-blue"><i class="fa-solid fa-file-circle-plus"></i></span>
+            <span><strong>Buat surat baru</strong><small>Nomor otomatis atau manual</small></span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </a>
+          <a href="{{ url_for('index', panel='riwayat') }}">
+            <span class="quick-action-icon quick-purple"><i class="fa-solid fa-clock-rotate-left"></i></span>
+            <span><strong>Periksa riwayat</strong><small>Cari, ekspor, atau batalkan</small></span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </a>
+          <a href="{{ url_for('admin_templates') }}">
+            <span class="quick-action-icon quick-green"><i class="fa-solid fa-file-word"></i></span>
+            <span><strong>Kelola template</strong><small>{{ total_template_count }} template aktif</small></span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </a>
+          <a href="{{ url_for('admin_master_data') }}">
+            <span class="quick-action-icon quick-orange"><i class="fa-solid fa-database"></i></span>
+            <span><strong>Periksa data master</strong><small>Guru, siswa, dan kode arsip</small></span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </a>
+        </div>
+      </section>
+
+      <section class="admin-panel admin-system-panel">
+        <div class="admin-panel-heading compact">
+          <div>
+            <span class="admin-section-kicker">Kesiapan</span>
+            <h2>Status sistem</h2>
+          </div>
+          <span class="admin-live-badge"><i></i> Aktif</span>
+        </div>
+        <dl class="admin-system-list">
+          <div><dt>Database</dt><dd>{{ database_label }}</dd></div>
+          <div><dt>Autentikasi</dt><dd>{{ auth_source }}</dd></div>
+          <div><dt>Akun aktif</dt><dd>{{ account_count }} admin</dd></div>
+          <div><dt>Template</dt><dd>{{ builtin_template_count }} bawaan + {{ custom_template_count }} tambahan</dd></div>
+        </dl>
+      </section>
+    </aside>
+  </div>
+
+  <section class="admin-panel admin-master-summary">
+    <div class="admin-panel-heading">
+      <div>
+        <span class="admin-section-kicker">Data master</span>
+        <h2>Cakupan data operasional</h2>
+      </div>
+      <a class="admin-text-link" href="{{ url_for('admin_master_data') }}">Lihat detail <i class="fa-solid fa-arrow-right"></i></a>
+    </div>
+    <div class="admin-master-cards">
+      <a href="{{ url_for('index', panel='guru') }}">
+        <span><i class="fa-solid fa-users"></i></span>
+        <div><strong>{{ master_stats.guru }}</strong><small>Guru &amp; staf</small></div>
+      </a>
+      <a href="{{ url_for('index', panel='murid') }}">
+        <span><i class="fa-solid fa-user-graduate"></i></span>
+        <div><strong>{{ master_stats.murid }}</strong><small>Siswa aktif</small></div>
+      </a>
+      <a href="{{ url_for('index', panel='kode') }}">
+        <span><i class="fa-solid fa-bookmark"></i></span>
+        <div><strong>{{ master_stats.kode_arsip }}</strong><small>Kode arsip</small></div>
+      </a>
+      <a href="{{ url_for('admin_templates') }}">
+        <span><i class="fa-solid fa-layer-group"></i></span>
+        <div><strong>{{ total_template_count }}</strong><small>Template aktif</small></div>
+      </a>
+    </div>
+  </section>
+{% endblock %}

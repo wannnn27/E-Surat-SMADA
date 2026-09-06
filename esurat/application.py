@@ -226,6 +226,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 return _json_error("Akses tanpa autentikasi hanya diizinkan dari komputer lokal", 403)
         admin_endpoints = {
             "admin_dashboard",
+            "admin_master_data",
+            "admin_templates",
             "admin_template_delete",
             "admin_template_upload",
             "api_cancel_history",
@@ -418,28 +420,158 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             return jsonify({"ok": True})
         return redirect(url_for("index"))
 
-    def render_admin_dashboard(*, error: str | None = None, field_errors=None, status: int = 200):
+    def admin_shell_context(active_page: str) -> dict[str, Any]:
+        registry = letter_registry()
+        custom_count = sum(1 for info in registry.values() if info.get("is_custom"))
+        return {
+            "active_page": active_page,
+            "username": session.get("username", "admin"),
+            "role": session.get("role", "admin"),
+            "account_count": len(auth_users),
+            "database_label": (
+                "PostgreSQL / Supabase"
+                if _is_postgres(app.config["DATABASE"])
+                else "SQLite lokal"
+            ),
+            "auth_source": (
+                "File akun privat"
+                if app.config.get("AUTH_USERS_FILE")
+                else "Environment deployment"
+            ),
+            "builtin_template_count": len(JENIS_SURAT),
+            "custom_template_count": custom_count,
+            "total_template_count": len(registry),
+        }
+
+    def format_admin_timestamp(value: Any) -> str:
+        if not value:
+            return "-"
+        if isinstance(value, datetime):
+            parsed = value
+        else:
+            try:
+                parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            except ValueError:
+                return str(value)
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(WIB)
+        return parsed.strftime("%d/%m/%Y %H:%M")
+
+    def load_admin_overview() -> dict[str, Any]:
+        database = app.config["DATABASE"]
+        postgres = _is_postgres(database)
+        history_table = _table("riwayat_surat", postgres)
+        month_start = _now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        conn = _connect_db(database)
+        try:
+            status_rows = conn.execute(
+                f"SELECT status, COUNT(*) AS total FROM {history_table} GROUP BY status"
+            ).fetchall()
+            month_row = conn.execute(
+                _sql(
+                    f"SELECT COUNT(*) AS total FROM {history_table} WHERE created_at >= ?",
+                    postgres,
+                ),
+                (month_start.isoformat(),),
+            ).fetchone()
+            month_total = int(month_row["total"])
+            recent_rows = conn.execute(
+                f"""
+                SELECT id, created_at, jenis_surat, nomor_surat, nama_pemohon,
+                       kategori, status, created_by
+                FROM {history_table}
+                ORDER BY id DESC LIMIT 8
+                """
+            ).fetchall()
+        finally:
+            conn.close()
+
+        status_counts = {
+            "rendering": 0,
+            "generated": 0,
+            "failed": 0,
+            "cancelled": 0,
+        }
+        for row in status_rows:
+            key = str(row["status"] or "generated")
+            if key in status_counts:
+                status_counts[key] = int(row["total"])
+        recent = []
+        for row in recent_rows:
+            item = dict(row)
+            item["created_at_display"] = format_admin_timestamp(item.get("created_at"))
+            recent.append(item)
+        return {
+            "total": sum(status_counts.values()),
+            "month_total": month_total,
+            "status": status_counts,
+            "needs_attention": status_counts["failed"] + status_counts["rendering"],
+            "recent": recent,
+        }
+
+    def render_admin_templates(
+        *, error: str | None = None, field_errors=None, status: int = 200
+    ):
         custom = [
             dict(info, key=key)
             for key, info in letter_registry().items()
             if info.get("is_custom")
         ]
-        return (
-            render_template(
-                "admin.html",
-                custom_templates=custom,
-                archive_codes=state["kode_arsip"],
-                error=error,
-                field_errors=field_errors or {},
-                success=request.args.get("success", ""),
-                username=session.get("username", "admin"),
-            ),
-            status,
+        builtin = [dict(info, key=key) for key, info in JENIS_SURAT.items()]
+        context = admin_shell_context("templates")
+        context.update(
+            {
+                "custom_templates": custom,
+                "builtin_templates": builtin,
+                "archive_codes": state["kode_arsip"],
+                "error": error,
+                "field_errors": field_errors or {},
+                "success": request.args.get("success", ""),
+            }
         )
+        return render_template("admin_templates.html", **context), status
 
     @app.get("/admin")
     def admin_dashboard():
-        return render_admin_dashboard()
+        context = admin_shell_context("dashboard")
+        context.update(
+            {
+                "overview": load_admin_overview(),
+                "master_stats": {
+                    "guru": len(state["guru"]),
+                    "murid": len(state["murid"]),
+                    "kode_arsip": len(state["kode_arsip"]),
+                },
+                "today_label": format_tanggal_indo(_now().date().isoformat()),
+                "success": request.args.get("success", ""),
+                "error": "",
+            }
+        )
+        return render_template("admin.html", **context)
+
+    @app.get("/admin/master-data")
+    def admin_master_data():
+        context = admin_shell_context("master")
+        context.update(
+            {
+                "guru_preview": state["guru"][:6],
+                "murid_preview": state["murid"][:6],
+                "archive_preview": state["kode_arsip"][:8],
+                "kepsek": state["kepsek"],
+                "master_stats": {
+                    "guru": len(state["guru"]),
+                    "murid": len(state["murid"]),
+                    "kode_arsip": len(state["kode_arsip"]),
+                },
+                "success": "",
+                "error": "",
+            }
+        )
+        return render_template("admin_master.html", **context)
+
+    @app.get("/admin/templates")
+    def admin_templates():
+        return render_admin_templates()
 
     @app.post("/admin/templates")
     def admin_template_upload():
@@ -447,7 +579,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         filename = secure_filename(upload.filename or "") if upload else ""
         content = upload.read(MAX_TEMPLATE_BYTES + 1) if upload else b""
         if filename and not filename.casefold().endswith(".docx"):
-            return render_admin_dashboard(
+            return render_admin_templates(
                 error="Template belum valid",
                 field_errors={"template_file": "file harus berformat .docx"},
                 status=422,
@@ -467,12 +599,12 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             save_custom_template(app.config["DATABASE"], template)
             refresh_custom_templates()
         except RequestValidationError as exc:
-            return render_admin_dashboard(
+            return render_admin_templates(
                 error=exc.message,
                 field_errors=exc.field_errors,
                 status=exc.status_code,
             )
-        return redirect(url_for("admin_dashboard", success="Template berhasil disimpan"))
+        return redirect(url_for("admin_templates", success="Template berhasil disimpan"))
 
     @app.post("/admin/templates/<key>/delete")
     def admin_template_delete(key: str):
@@ -483,7 +615,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             return _json_error("Template kustom tidak ditemukan", 404)
         delete_custom_template(app.config["DATABASE"], key)
         refresh_custom_templates()
-        return redirect(url_for("admin_dashboard", success="Template berhasil dihapus"))
+        return redirect(url_for("admin_templates", success="Template berhasil dihapus"))
 
     @app.get("/healthz")
     def healthz():
@@ -621,12 +753,14 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         history_table = _table("riwayat_surat", postgres)
         conn = _connect_db(database)
         try:
-            total = int(
-                conn.execute(
-                    _sql(f"SELECT COUNT(*) FROM {history_table}{where_sql}", postgres),
-                    params,
-                ).fetchone()[0]
-            )
+            count_row = conn.execute(
+                _sql(
+                    f"SELECT COUNT(*) AS total FROM {history_table}{where_sql}",
+                    postgres,
+                ),
+                params,
+            ).fetchone()
+            total = int(count_row["total"])
             rows = conn.execute(
                 _sql(f"""
                 SELECT id, created_at, updated_at, jenis_surat, jenis_key, nomor_surat,
@@ -693,7 +827,24 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 "Alasan pembatalan",
             ]
         )
-        writer.writerows([safe_csv_cell(value) for value in row] for row in rows)
+        export_columns = (
+            "created_at",
+            "nomor_surat",
+            "jenis_surat",
+            "status",
+            "nama_pemohon",
+            "id_pemohon",
+            "kategori",
+            "keperluan",
+            "created_by",
+            "created_by_role",
+            "cancelled_at",
+            "cancelled_by",
+            "cancel_reason",
+        )
+        writer.writerows(
+            [safe_csv_cell(row[column]) for column in export_columns] for row in rows
+        )
         filename = f"riwayat-surat-{_now().date().isoformat()}.csv"
         return app.response_class(
             "\ufeff" + output.getvalue(),

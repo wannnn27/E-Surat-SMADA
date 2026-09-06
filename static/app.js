@@ -1905,6 +1905,26 @@
     setStatus(elements.fieldsStatus, '', 'info');
     setStatus(elements.downloadStatus, '', 'info');
     setWizardStep(1, { focus: false });
+
+    const params = new URLSearchParams(window.location.search);
+    const requestedPanel = params.get('panel');
+    const supportedPanels = ['guru', 'murid', 'templates', 'riwayat', 'kode'];
+    if (supportedPanels.includes(requestedPanel)) {
+      params.delete('panel');
+      const remainingQuery = params.toString();
+      window.history.replaceState(
+        null,
+        '',
+        window.location.pathname + (remainingQuery ? '?' + remainingQuery : '') + window.location.hash
+      );
+      if (requestedPanel === 'guru') openGuruDirectory();
+      else if (requestedPanel === 'murid') openMuridDirectory();
+      else if (requestedPanel === 'templates') {
+        openModal(modals.templates, byId('closeTemplatesModalBtn'));
+      } else if (requestedPanel === 'riwayat' && currentRole === 'admin') {
+        void openRiwayatDirectory();
+      } else if (requestedPanel === 'kode') openKodeArsipDirectory(null);
+    }
   }
 
   initialise();

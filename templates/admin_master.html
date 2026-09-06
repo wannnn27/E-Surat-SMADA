@@ -1,0 +1,96 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Data Master{% endblock %}
+{% block eyebrow %}Sumber data operasional{% endblock %}
+{% block heading %}Data Master{% endblock %}
+{% block description %}Periksa cakupan data guru, siswa, kepala sekolah, dan kode klasifikasi arsip.{% endblock %}
+{% block actions %}
+  <a class="admin-btn admin-btn-secondary" href="{{ url_for('index') }}">
+    <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka direktori
+  </a>
+{% endblock %}
+
+{% block content %}
+  <section class="admin-metric-grid admin-master-metrics" aria-label="Ringkasan data master">
+    <article class="admin-metric-card metric-primary">
+      <span class="admin-metric-icon"><i class="fa-solid fa-users"></i></span>
+      <div><span class="admin-metric-label">Guru &amp; staf</span><strong>{{ master_stats.guru }}</strong><small>Record siap digunakan</small></div>
+    </article>
+    <article class="admin-metric-card metric-success">
+      <span class="admin-metric-icon"><i class="fa-solid fa-user-graduate"></i></span>
+      <div><span class="admin-metric-label">Siswa</span><strong>{{ master_stats.murid }}</strong><small>Record siswa aktif</small></div>
+    </article>
+    <article class="admin-metric-card metric-warning">
+      <span class="admin-metric-icon"><i class="fa-solid fa-bookmark"></i></span>
+      <div><span class="admin-metric-label">Kode arsip</span><strong>{{ master_stats.kode_arsip }}</strong><small>Klasifikasi tersedia</small></div>
+    </article>
+    <article class="admin-metric-card metric-purple">
+      <span class="admin-metric-icon"><i class="fa-solid fa-user-tie"></i></span>
+      <div><span class="admin-metric-label">Kepala sekolah</span><strong class="admin-metric-name">{{ kepsek.nama }}</strong><small>NIP {{ kepsek.nip }}</small></div>
+    </article>
+  </section>
+
+  <section class="admin-info-banner">
+    <span><i class="fa-solid fa-circle-info"></i></span>
+    <div>
+      <strong>Pembaruan data dilakukan melalui proses import terverifikasi</strong>
+      <p>Panel ini sengaja bersifat baca-saja untuk mencegah perubahan identitas tanpa sumber resmi. Gunakan file Excel sumber, jalankan validasi import, lalu restart atau deploy ulang aplikasi.</p>
+    </div>
+  </section>
+
+  <div class="admin-master-detail-grid">
+    <section class="admin-panel">
+      <div class="admin-panel-heading">
+        <div><span class="admin-section-kicker">Pratinjau</span><h2>Guru &amp; staf</h2></div>
+        <a class="admin-text-link" href="{{ url_for('index', panel='guru') }}">Lihat direktori <i class="fa-solid fa-arrow-right"></i></a>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table admin-master-table">
+          <thead><tr><th>Nama</th><th>NIP</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for item in guru_preview %}
+              <tr>
+                <td><strong>{{ item.nama }}</strong><small>{{ item.jabatan or '-' }}</small></td>
+                <td class="admin-table-muted">{{ item.nip }}</td>
+                <td><span class="admin-status status-success">{{ item.kedudukan or 'Aktif' }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="admin-panel">
+      <div class="admin-panel-heading">
+        <div><span class="admin-section-kicker">Pratinjau</span><h2>Siswa</h2></div>
+        <a class="admin-text-link" href="{{ url_for('index', panel='murid') }}">Lihat direktori <i class="fa-solid fa-arrow-right"></i></a>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table admin-master-table">
+          <thead><tr><th>Nama</th><th>NIS / NISN</th><th>Kelas</th></tr></thead>
+          <tbody>
+            {% for item in murid_preview %}
+              <tr>
+                <td><strong>{{ item.nama }}</strong></td>
+                <td><span>{{ item.nis }}</span><small>{{ item.nisn }}</small></td>
+                <td><span class="admin-status status-neutral">{{ item.kelas or '-' }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="admin-panel">
+    <div class="admin-panel-heading">
+      <div><span class="admin-section-kicker">Klasifikasi</span><h2>Kode arsip utama</h2></div>
+      <a class="admin-text-link" href="{{ url_for('index', panel='kode') }}">Cari seluruh kode <i class="fa-solid fa-arrow-right"></i></a>
+    </div>
+    <div class="admin-archive-grid">
+      {% for item in archive_preview %}
+        <article><strong>{{ item.kode }}</strong><span>{{ item.keterangan }}</span></article>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

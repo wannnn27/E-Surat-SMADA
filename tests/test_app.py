@@ -690,9 +690,10 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual(api.status_code, 200)
         self.assertGreater(len(api.get_json()), 0)
 
-        admin_page = self.client.get("/admin", follow_redirects=False)
-        self.assertEqual(admin_page.status_code, 302)
-        self.assertIn("/login?next=/admin", admin_page.headers["Location"])
+        for admin_path in ("/admin", "/admin/templates", "/admin/master-data"):
+            admin_page = self.client.get(admin_path, follow_redirects=False)
+            self.assertEqual(admin_page.status_code, 302)
+            self.assertIn("/login?next=", admin_page.headers["Location"])
         self.assertEqual(self.client.get("/api/list/riwayat").status_code, 403)
 
         login_page = self.client.get("/login")
@@ -729,7 +730,22 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual(logged_in.status_code, 302)
         self.assertEqual(logged_in.headers["Location"], "/admin")
         self.assertEqual(self.client.get("/").status_code, 200)
-        self.assertEqual(self.client.get("/admin").status_code, 200)
+        dashboard = self.client.get("/admin")
+        self.assertEqual(dashboard.status_code, 200)
+        dashboard_html = dashboard.get_data(as_text=True)
+        self.assertIn("Dashboard Admin", dashboard_html)
+        self.assertIn("Ringkasan operasional", dashboard_html)
+        self.assertIn("Status sistem", dashboard_html)
+
+        templates_page = self.client.get("/admin/templates")
+        self.assertEqual(templates_page.status_code, 200)
+        self.assertIn("Unggah template DOCX", templates_page.get_data(as_text=True))
+
+        master_page = self.client.get("/admin/master-data")
+        self.assertEqual(master_page.status_code, 200)
+        master_html = master_page.get_data(as_text=True)
+        self.assertIn("Data Master", master_html)
+        self.assertIn("Guru &amp; staf", master_html)
         with self.client.session_transaction() as auth_session:
             self.assertEqual(auth_session["role"], "admin")
             self.assertTrue(auth_session.permanent)
@@ -886,6 +902,9 @@ class PublicAdminWorkflowTests(unittest.TestCase):
         self.assertEqual(cancelled.status_code, 200)
         self.assertEqual(cancelled.get_json()["cancelled_by"], "admin-satu")
         self.assertEqual(admin.get("/api/list/riwayat").status_code, 200)
+        dashboard_html = admin.get("/admin").get_data(as_text=True)
+        self.assertIn(person["nama"], dashboard_html)
+        self.assertIn("Dibatalkan", dashboard_html)
 
         manual_number = "MANUAL/001/2026"
         form["nomor_surat_custom"] = manual_number
@@ -921,6 +940,7 @@ class PublicAdminWorkflowTests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertEqual(uploaded.status_code, 302, uploaded.get_data(as_text=True))
+        self.assertIn("/admin/templates?success=", uploaded.headers["Location"])
         self.assertIn("custom_izin_murid", self.app.extensions["letter_registry"])
 
         student = self.app.extensions["esurat_data"]["murid"][0]
