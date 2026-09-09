@@ -786,6 +786,7 @@ class AuthenticationTests(unittest.TestCase):
         login_page = self.client.get("/login")
         self.assertEqual(login_page.status_code, 200)
         self.assertIn("csrf_token", login_page.get_data(as_text=True))
+        self.assertIn("static/session.js", login_page.get_data(as_text=True))
 
         missing_csrf = self.client.post(
             "/login", data={"username": "operator-tu", "password": "password-pengujian"}
