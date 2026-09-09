@@ -1,45 +1,129 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <title>Masuk - E-Surat SMADA</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="login-page">
-  <main class="login-card" aria-labelledby="login-title">
-    <div class="login-brand">
-      <div class="login-brand-mark" aria-hidden="true">S</div>
-      <div>
-        <h1 id="login-title">E-Surat SMADA</h1>
-        <p>Akses khusus administrator</p>
+  <span class="login-bg-orb login-bg-orb-one" aria-hidden="true"></span>
+  <span class="login-bg-orb login-bg-orb-two" aria-hidden="true"></span>
+
+  <main class="login-shell" aria-labelledby="login-title">
+    <section class="login-showcase" aria-label="Tentang E-Surat SMADA">
+      <div class="login-showcase-content">
+        <a class="login-showcase-brand" href="{{ url_for('index') }}" aria-label="Kembali ke E-Surat SMADA">
+          <span class="login-showcase-logo">
+            <img src="{{ url_for('static', filename='smada.png') }}" alt="Logo SMAN 2 Wonosari">
+          </span>
+          <span>
+            <strong>E-SURAT SMADA</strong>
+            <small>SMAN 2 Wonosari</small>
+          </span>
+        </a>
+
+        <div class="login-showcase-copy">
+          <span class="login-showcase-badge">
+            <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+            Sistem Persuratan Resmi
+          </span>
+          <h1>Kelola persuratan sekolah dengan lebih mudah.</h1>
+          <p>Satu ruang kerja untuk menyusun surat, mengatur template, dan menjaga arsip administrasi tetap tertata.</p>
+        </div>
+
+        <div class="login-feature-list" aria-label="Fitur administrator">
+          <div class="login-feature-item">
+            <span><i class="fa-solid fa-file-circle-plus" aria-hidden="true"></i></span>
+            <div>
+              <strong>Template terpusat</strong>
+              <small>Kelola format surat yang digunakan pengguna.</small>
+            </div>
+          </div>
+          <div class="login-feature-item">
+            <span><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></span>
+            <div>
+              <strong>Riwayat terdokumentasi</strong>
+              <small>Pantau surat yang pernah dibuat dengan rapi.</small>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
 
-    {% if error %}
-      <p class="login-error" role="alert">{{ error }}</p>
-    {% endif %}
+      <div class="login-showcase-footer">
+        <span class="login-status-dot" aria-hidden="true"></span>
+        Sistem siap digunakan
+      </div>
+    </section>
 
-    <form class="login-form" method="post" action="{{ url_for('login') }}">
-      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="next" value="{{ next_path }}">
-      <label>
-        Username
-        <input name="username" type="text" autocomplete="username" required autofocus maxlength="80">
-      </label>
-      <label>
-        Password
-        <input name="password" type="password" autocomplete="current-password" required maxlength="256">
-      </label>
-      <button class="btn-bottom-navy" type="submit">Masuk sebagai admin</button>
-    </form>
+    <section class="login-panel">
+      <a class="login-back-link" href="{{ url_for('index') }}">
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+        Kembali ke aplikasi
+      </a>
 
-    <p class="login-help">
-      Sesi admin dapat tetap aktif hingga 8 jam pada perangkat ini. Gunakan tombol
-      <strong>Keluar dari admin</strong> setelah selesai. Pengguna umum tidak perlu login.
-      <a href="{{ url_for('index') }}">Kembali ke halaman pembuatan surat</a>.
-    </p>
+      <div class="login-card">
+        <div class="login-panel-brand" aria-hidden="true">
+          <img src="{{ url_for('static', filename='smada.png') }}" alt="">
+          <span>E-SURAT SMADA</span>
+        </div>
+
+        <div class="login-form-header">
+          <span class="login-brand-mark" aria-hidden="true">
+            <i class="fa-solid fa-user-shield"></i>
+          </span>
+          <p class="login-eyebrow">AREA ADMINISTRATOR</p>
+          <h2 id="login-title">Selamat datang kembali</h2>
+          <p>Masukkan akun administrator untuk melanjutkan ke dashboard pengelolaan.</p>
+        </div>
+
+        {% if error %}
+          <div class="login-error" role="alert">
+            <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+            <span>{{ error }}</span>
+          </div>
+        {% endif %}
+
+        <form class="login-form" method="post" action="{{ url_for('login') }}">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="next" value="{{ next_path }}">
+
+          <label for="login-username">Username</label>
+          <div class="login-input-shell">
+            <i class="fa-regular fa-user" aria-hidden="true"></i>
+            <input id="login-username" name="username" type="text" autocomplete="username" required autofocus maxlength="80" autocapitalize="none" spellcheck="false" placeholder="Masukkan username">
+          </div>
+
+          <label for="login-password">Password</label>
+          <div class="login-input-shell">
+            <i class="fa-solid fa-lock" aria-hidden="true"></i>
+            <input id="login-password" name="password" type="password" autocomplete="current-password" required maxlength="256" placeholder="Masukkan password">
+            <button class="login-password-toggle" type="button" data-password-toggle aria-controls="login-password" aria-pressed="false" aria-label="Tampilkan password">
+              <i class="fa-regular fa-eye" aria-hidden="true"></i>
+            </button>
+          </div>
+
+          <button class="login-submit" type="submit">
+            <span>Masuk sebagai admin</span>
+            <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+          </button>
+        </form>
+
+        <div class="login-security-note">
+          <i class="fa-solid fa-lock" aria-hidden="true"></i>
+          <p>Sesi admin aktif hingga 8 jam. Selalu keluar dari akun setelah pekerjaan selesai.</p>
+        </div>
+
+        <p class="login-help">
+          Pengguna umum tidak memerlukan akun.
+          <a href="{{ url_for('index') }}">Buat surat tanpa login</a>
+        </p>
+      </div>
+    </section>
   </main>
+
+  <script src="{{ url_for('static', filename='login.js') }}" defer></script>
 </body>
 </html>
