@@ -181,6 +181,45 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     login_attempts_lock = threading.Lock()
     app.extensions["database_initialized"] = False
 
+    def csrf_failure_response(endpoint: str):
+        """Keep API errors machine-readable and browser form failures user-friendly."""
+
+        message = "Sesi keamanan telah diperbarui. Silakan ulangi tindakan Anda."
+        if endpoint == "logout" and not request.is_json:
+            session.clear()
+            if app.config["AUTH_ENABLED"]:
+                return redirect(url_for("login", notice="session_expired"), code=303)
+            return redirect(url_for("index"), code=303)
+
+        browser_form_targets = {
+            "admin_template_upload": "admin_templates",
+            "admin_template_delete": "admin_templates",
+            "admin_history_cancel": "admin_history",
+        }
+        if not request.is_json and endpoint == "login":
+            session["csrf_token"] = secrets.token_urlsafe(32)
+            return (
+                render_template(
+                    "login.html",
+                    error=message,
+                    notice=None,
+                    next_path=request.form.get("next", ""),
+                ),
+                403,
+            )
+        if not request.is_json and endpoint in browser_form_targets:
+            session["csrf_token"] = secrets.token_urlsafe(32)
+            return redirect(
+                url_for(browser_form_targets[endpoint], error=message),
+                code=303,
+            )
+        return jsonify(
+            {
+                "error": "Token CSRF tidak valid atau kedaluwarsa",
+                "code": "csrf_invalid",
+            }
+        ), 403
+
     def refresh_custom_templates() -> None:
         registry = dict(JENIS_SURAT)
         custom_templates = load_custom_templates(app.config["DATABASE"])
@@ -264,12 +303,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             )
             expected = session.get("csrf_token", "")
             if not supplied or not expected or not hmac.compare_digest(str(supplied), str(expected)):
-                return jsonify(
-                    {
-                        "error": "Token CSRF tidak valid atau kedaluwarsa",
-                        "code": "csrf_invalid",
-                    }
-                ), 403
+                return csrf_failure_response(endpoint)
         ensure_database_initialized()
         if endpoint != "static":
             refresh_custom_templates_if_changed()
@@ -363,7 +397,17 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         if request.method == "GET":
             if session.get("authenticated"):
                 return redirect(url_for("admin_dashboard"))
-            return render_template("login.html", error=None, next_path=request.args.get("next", ""))
+            notice = (
+                "Sesi sebelumnya telah berakhir. Silakan masuk kembali."
+                if request.args.get("notice") == "session_expired"
+                else None
+            )
+            return render_template(
+                "login.html",
+                error=None,
+                notice=notice,
+                next_path=request.args.get("next", ""),
+            )
 
         data = request.get_json(silent=True) or request.form
         username = _normalize_text(data.get("username", ""))
@@ -405,6 +449,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 render_template(
                     "login.html",
                     error="Username atau password salah.",
+                    notice=None,
                     next_path=request.form.get("next", ""),
                 ),
                 401,

@@ -2506,6 +2506,25 @@ body.modal-open {
   margin-top: 2px;
 }
 
+.login-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 18px;
+  padding: 12px 13px;
+  border: 1px solid #c4e2ff;
+  border-radius: 12px;
+  color: #175a96;
+  background: #edf7ff;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.login-notice i {
+  margin-top: 2px;
+  color: #4a98f0;
+}
+
 .login-form {
   display: grid;
   gap: 10px;

@@ -766,6 +766,7 @@ class AuthenticationTests(unittest.TestCase):
         browser_html = browser.get_data(as_text=True)
         self.assertIn('class="workspace-topbar"', browser_html)
         self.assertIn("Login Admin", browser_html)
+        self.assertIn("static/session.js", browser_html)
 
         api = self.client.get("/api/list/guru")
         self.assertEqual(api.status_code, 200)
@@ -822,6 +823,7 @@ class AuthenticationTests(unittest.TestCase):
         self.assertIn("Dashboard Admin", dashboard_html)
         self.assertIn("Ringkasan operasional", dashboard_html)
         self.assertIn("Status sistem", dashboard_html)
+        self.assertIn("static/session.js", dashboard_html)
 
         templates_page = self.client.get("/admin/templates")
         self.assertEqual(templates_page.status_code, 200)
@@ -867,6 +869,68 @@ class AuthenticationTests(unittest.TestCase):
         )
         self.assertEqual(admin_logout.status_code, 302)
         self.assertEqual(admin_logout.headers["Location"], "/login")
+
+    def test_stale_browser_form_csrf_never_exposes_raw_json(self) -> None:
+        login_client = self.app.test_client()
+        stale_login_token = login_client.get("/api/csrf").get_json()["csrf_token"]
+        with login_client.session_transaction() as login_session:
+            login_session["csrf_token"] = "rotated-login-token"
+        stale_login = login_client.post(
+            "/login",
+            data={
+                "_csrf_token": stale_login_token,
+                "username": "operator-tu",
+                "password": "password-pengujian",
+            },
+        )
+        self.assertEqual(stale_login.status_code, 403)
+        self.assertEqual(stale_login.mimetype, "text/html")
+        self.assertIn("Sesi keamanan telah diperbarui", stale_login.get_data(as_text=True))
+
+        admin_client = self.app.test_client()
+        login_token = admin_client.get("/api/csrf").get_json()["csrf_token"]
+        logged_in = admin_client.post(
+            "/login",
+            data={
+                "_csrf_token": login_token,
+                "username": "operator-tu",
+                "password": "password-pengujian",
+            },
+        )
+        self.assertEqual(logged_in.status_code, 302)
+
+        stale_admin_token = admin_client.get("/api/csrf").get_json()["csrf_token"]
+        with admin_client.session_transaction() as admin_session:
+            admin_session["csrf_token"] = "rotated-admin-token"
+        stale_admin_form = admin_client.post(
+            "/admin/templates",
+            data={"_csrf_token": stale_admin_token},
+            follow_redirects=False,
+        )
+        self.assertEqual(stale_admin_form.status_code, 303)
+        self.assertTrue(stale_admin_form.headers["Location"].startswith("/admin/templates?error="))
+        self.assertNotEqual(stale_admin_form.mimetype, "application/json")
+
+        with admin_client.session_transaction() as admin_session:
+            stale_logout_token = admin_session["csrf_token"]
+            admin_session["csrf_token"] = "rotated-logout-token"
+        stale_logout = admin_client.post(
+            "/logout",
+            data={
+                "_csrf_token": stale_logout_token,
+                "next": "login",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(stale_logout.status_code, 303)
+        self.assertEqual(stale_logout.headers["Location"], "/login?notice=session_expired")
+        self.assertNotEqual(stale_logout.mimetype, "application/json")
+        with admin_client.session_transaction() as admin_session:
+            self.assertNotIn("authenticated", admin_session)
+
+        login_notice = admin_client.get(stale_logout.headers["Location"])
+        self.assertEqual(login_notice.status_code, 200)
+        self.assertIn("Sesi sebelumnya telah berakhir", login_notice.get_data(as_text=True))
 
     def test_login_rate_limit(self) -> None:
         token = self.csrf()
