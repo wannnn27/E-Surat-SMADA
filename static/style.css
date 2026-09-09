@@ -4,32 +4,32 @@
    ========================================================================== */
 
 :root {
-  /* Color Palette - Futbalito Executive Dashboard System */
-  --bg-page: #f1f5f9;
-  --sidebar-bg: #283248;
-  --sidebar-border: #1e2638;
-  --sidebar-text: #94a3b8;
-  --sidebar-active-bg: #1d2537;
+  /* Color Palette - Tailwind Admin inspired light dashboard */
+  --bg-page: #f6f9fc;
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e5eaf2;
+  --sidebar-text: #5a6a85;
+  --sidebar-active-bg: #5d87ff;
   --sidebar-active-text: #ffffff;
   
   --card-bg: #ffffff;
-  --card-border: #e2e8f0;
-  --card-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+  --card-border: #e5eaf2;
+  --card-shadow: 0 5px 20px -4px rgba(42, 53, 71, 0.08);
   
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
-  --text-muted: #64748b;
+  --text-primary: #2a3547;
+  --text-secondary: #5a6a85;
+  --text-muted: #7c8aa5;
   
-  --primary-navy: #283248;
-  --primary-blue: #10b981;
-  --primary-gold: #f59e0b;
-  --primary-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --primary-navy: #5d87ff;
+  --primary-blue: #5d87ff;
+  --primary-gold: #ffae1f;
+  --primary-gradient: linear-gradient(135deg, #5d87ff 0%, #49beff 100%);
   
-  --stepper-active-bg: #92400e;
+  --stepper-active-bg: #5d87ff;
   --stepper-active-text: #ffffff;
-  --stepper-completed-bg: #047857;
+  --stepper-completed-bg: #49beff;
   --stepper-completed-text: #ffffff;
-  --stepper-line: #cbd5e1;
+  --stepper-line: #dbe4f0;
   
   --pill-orange-bg: #fff7ed;
   --pill-orange-border: #fed7aa;
@@ -40,8 +40,8 @@
   --pill-purple-text: #047857;
   
   --input-bg: #ffffff;
-  --input-border: #cbd5e1;
-  --input-focus: #10b981;
+  --input-border: #d8e2ef;
+  --input-focus: #5d87ff;
 }
 
 [data-theme="dark"] {
@@ -61,14 +61,14 @@
   --text-secondary: #cbd5e1;
   --text-muted: #94a3b8;
   
-  --primary-navy: #10b981;
-  --primary-blue: #10b981;
-  --primary-gold: #f59e0b;
-  --primary-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --primary-navy: #7ba2ff;
+  --primary-blue: #7ba2ff;
+  --primary-gold: #ffbe4f;
+  --primary-gradient: linear-gradient(135deg, #5d87ff 0%, #49beff 100%);
   
-  --stepper-active-bg: #b45309;
+  --stepper-active-bg: #5d87ff;
   --stepper-active-text: #ffffff;
-  --stepper-completed-bg: #047857;
+  --stepper-completed-bg: #49beff;
   --stepper-completed-text: #ffffff;
   --stepper-line: #334155;
   
@@ -82,7 +82,7 @@
   
   --input-bg: #0f172a;
   --input-border: #334155;
-  --input-focus: #10b981;
+  --input-focus: #7ba2ff;
 }
 
 /* Base Resets */
@@ -3534,4 +3534,293 @@ body.modal-open {
   .login-card {
     padding: 24px 20px;
   }
+}
+
+/* ==========================================================================
+   TAILWIND ADMIN INSPIRED COLOR THEME
+   ========================================================================== */
+
+html:not([data-theme="dark"]) button:focus-visible,
+html:not([data-theme="dark"]) input:focus-visible,
+html:not([data-theme="dark"]) select:focus-visible,
+html:not([data-theme="dark"]) textarea:focus-visible,
+html:not([data-theme="dark"]) [tabindex]:focus-visible {
+  outline-color: #5d87ff;
+}
+
+html:not([data-theme="dark"]) .app-sidebar {
+  background: #ffffff;
+  border-color: #e5eaf2;
+  box-shadow: 5px 0 24px rgba(42, 53, 71, 0.04);
+}
+
+html:not([data-theme="dark"]) .sidebar-brand-name {
+  color: #2a3547 !important;
+}
+
+html:not([data-theme="dark"]) .sidebar-brand,
+html:not([data-theme="dark"]) .sidebar-bottom {
+  border-color: #e5eaf2;
+}
+
+html:not([data-theme="dark"]) .nav-item,
+html:not([data-theme="dark"]) .reset-link-btn,
+html:not([data-theme="dark"]) .mobile-account-label {
+  color: #5a6a85;
+}
+
+html:not([data-theme="dark"]) .nav-item:hover {
+  background: #eef3ff;
+  color: #496fdc;
+}
+
+html:not([data-theme="dark"]) .nav-item.active {
+  background: #5d87ff;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(93, 135, 255, 0.24);
+}
+
+html:not([data-theme="dark"]) .nav-item.active::before {
+  display: none;
+}
+
+html:not([data-theme="dark"]) .reset-link-btn:hover {
+  color: #5d87ff;
+}
+
+html:not([data-theme="dark"]) .workspace-topbar-icon {
+  background: #edf3ff;
+  color: #5d87ff;
+}
+
+html:not([data-theme="dark"]) .btn-header-outline.btn-admin-access {
+  border-color: #cddaff;
+  background: #edf3ff;
+  color: #496fdc;
+}
+
+html:not([data-theme="dark"]) .btn-header-outline.btn-admin-access:hover {
+  border-color: #5d87ff;
+  background: #dfe8ff;
+}
+
+html:not([data-theme="dark"]) .title-icon-box,
+html:not([data-theme="dark"]) .card-icon-box {
+  background: linear-gradient(135deg, #5d87ff 0%, #6f9bff 100%);
+  box-shadow: 0 6px 14px rgba(93, 135, 255, 0.22);
+}
+
+html:not([data-theme="dark"]) .stat-item:nth-child(1) .stat-icon {
+  background: #edf3ff;
+  color: #5d87ff;
+}
+
+html:not([data-theme="dark"]) .stat-item:nth-child(3) .stat-icon {
+  background: #eaf9ff;
+  color: #22a8e8;
+}
+
+html:not([data-theme="dark"]) .stat-item:nth-child(5) .stat-icon {
+  background: #f3edff;
+  color: #8b5cf6;
+}
+
+html:not([data-theme="dark"]) .stat-item:nth-child(7) .stat-icon {
+  background: #fff7e6;
+  color: #e38b00;
+}
+
+html:not([data-theme="dark"]) .surat-select-card:hover {
+  border-color: #8eabff;
+  box-shadow: 0 10px 24px -4px rgba(93, 135, 255, 0.18);
+}
+
+html:not([data-theme="dark"]) .surat-select-card.active {
+  border-color: #5d87ff !important;
+  background: #f1f5ff !important;
+  box-shadow: 0 12px 28px -5px rgba(93, 135, 255, 0.22) !important;
+}
+
+html:not([data-theme="dark"]) .surat-select-card.active .card-icon-box {
+  border-color: #5d87ff !important;
+  background: #5d87ff !important;
+}
+
+html:not([data-theme="dark"]) .surat-select-card.active .card-check-icon,
+html:not([data-theme="dark"]) .surat-select-card.active .card-bottom-link,
+html:not([data-theme="dark"]) .card-bottom-link,
+html:not([data-theme="dark"]) .btn-field-picker,
+html:not([data-theme="dark"]) .inline-edit-btn,
+html:not([data-theme="dark"]) .card-action-label {
+  color: #496fdc !important;
+}
+
+html:not([data-theme="dark"]) select.form-control:focus,
+html:not([data-theme="dark"]) input.form-control:focus,
+html:not([data-theme="dark"]) textarea.form-control:focus {
+  border-color: #5d87ff;
+  box-shadow: 0 0 0 3px rgba(93, 135, 255, 0.14);
+}
+
+html:not([data-theme="dark"]) .selected-person-box {
+  border-color: #cddaff;
+  background: #f1f5ff;
+  color: #496fdc;
+}
+
+html:not([data-theme="dark"]) .selected-person-row {
+  border-color: #cddaff;
+}
+
+html:not([data-theme="dark"]) .btn-bottom-navy {
+  background: linear-gradient(135deg, #5d87ff 0%, #49beff 100%);
+  box-shadow: 0 9px 22px rgba(93, 135, 255, 0.3);
+}
+
+html:not([data-theme="dark"]) .btn-bottom-navy:hover {
+  background: linear-gradient(135deg, #4f78ec 0%, #35afea 100%);
+  box-shadow: 0 12px 28px rgba(93, 135, 255, 0.38);
+}
+
+html:not([data-theme="dark"]) .help-content p,
+html:not([data-theme="dark"]) .step4-ready {
+  border-color: #c9eefe;
+  background: #eefaff;
+  color: #246b8f;
+}
+
+html:not([data-theme="dark"]) .step4-ready-icon,
+html:not([data-theme="dark"]) .card-action-pill {
+  background: #49beff;
+}
+
+html:not([data-theme="dark"]) .step4-ready h4,
+html:not([data-theme="dark"]) .step4-ready p {
+  color: #246b8f;
+}
+
+html:not([data-theme="dark"]) .login-page {
+  background:
+    radial-gradient(circle at top left, rgba(73, 190, 255, 0.2), transparent 34rem),
+    #f6f9fc;
+}
+
+html:not([data-theme="dark"]) .admin-page {
+  background: #f6f9fc;
+}
+
+html:not([data-theme="dark"]) .admin-sidebar {
+  border-right: 1px solid #e5eaf2;
+  background: #ffffff;
+  color: #2a3547;
+  box-shadow: 5px 0 24px rgba(42, 53, 71, 0.04);
+}
+
+html:not([data-theme="dark"]) .admin-brand {
+  border-color: #e5eaf2;
+  color: #2a3547;
+}
+
+html:not([data-theme="dark"]) .admin-brand small,
+html:not([data-theme="dark"]) .admin-user-card small,
+html:not([data-theme="dark"]) .admin-nav-label {
+  color: #7c8aa5;
+}
+
+html:not([data-theme="dark"]) .admin-nav-item {
+  color: #5a6a85;
+}
+
+html:not([data-theme="dark"]) .admin-nav-item > i {
+  color: #8b98ad;
+}
+
+html:not([data-theme="dark"]) .admin-nav-item:hover {
+  background: #eef3ff;
+  color: #496fdc;
+}
+
+html:not([data-theme="dark"]) .admin-nav-item:hover > i {
+  color: #5d87ff;
+}
+
+html:not([data-theme="dark"]) .admin-nav-item.active {
+  background: #5d87ff;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(93, 135, 255, 0.24);
+}
+
+html:not([data-theme="dark"]) .admin-nav-item.active > i {
+  color: #ffffff;
+}
+
+html:not([data-theme="dark"]) .admin-sidebar-footer {
+  border-color: #e5eaf2;
+}
+
+html:not([data-theme="dark"]) .admin-user-avatar {
+  background: #edf3ff;
+  color: #5d87ff;
+}
+
+html:not([data-theme="dark"]) .admin-logout {
+  border-color: #d8e2ef;
+  background: #ffffff;
+  color: #5a6a85;
+}
+
+html:not([data-theme="dark"]) .admin-logout:hover {
+  border-color: #5d87ff;
+  background: #eef3ff;
+  color: #496fdc;
+}
+
+html:not([data-theme="dark"]) .admin-eyebrow,
+html:not([data-theme="dark"]) .admin-section-kicker,
+html:not([data-theme="dark"]) .admin-text-link {
+  color: #5d87ff !important;
+}
+
+html:not([data-theme="dark"]) .admin-btn-primary {
+  background: #5d87ff;
+  box-shadow: 0 9px 20px rgba(93, 135, 255, 0.24);
+}
+
+html:not([data-theme="dark"]) .admin-btn-primary:hover {
+  background: #4f78ec;
+}
+
+html:not([data-theme="dark"]) .admin-template-form input:focus,
+html:not([data-theme="dark"]) .admin-template-form select:focus,
+html:not([data-theme="dark"]) .admin-template-form textarea:focus,
+html:not([data-theme="dark"]) .admin-history-filters input:focus,
+html:not([data-theme="dark"]) .admin-history-filters select:focus {
+  border-color: #5d87ff;
+  box-shadow: 0 0 0 3px rgba(93, 135, 255, 0.13);
+}
+
+html:not([data-theme="dark"]) .admin-count-badge {
+  background: #edf3ff;
+  color: #496fdc;
+}
+
+html:not([data-theme="dark"]) .admin-master-cards > a:hover {
+  border-color: #cddaff;
+  background: #f6f8ff;
+}
+
+html:not([data-theme="dark"]) .admin-quick-actions > a:hover > i {
+  color: #5d87ff;
+}
+
+@media (max-width: 768px) {
+  html:not([data-theme="dark"]) .nav-item.active {
+    background: #5d87ff;
+    box-shadow: 0 5px 13px rgba(93, 135, 255, 0.25);
+  }
+
+  html:not([data-theme="dark"]) .stat-item:nth-child(1) { border-top-color: #5d87ff; }
+  html:not([data-theme="dark"]) .stat-item:nth-child(3) { border-top-color: #49beff; }
+  html:not([data-theme="dark"]) .stat-item:nth-child(5) { border-top-color: #a77bf3; }
+  html:not([data-theme="dark"]) .stat-item:nth-child(7) { border-top-color: #ffae1f; }
 }
