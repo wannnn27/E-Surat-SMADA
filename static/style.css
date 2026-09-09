@@ -363,10 +363,95 @@ body {
 .app-main {
   flex: 1;
   min-width: 0;
-  padding: 28px 36px;
+  padding: 18px 36px 28px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+}
+
+.workspace-topbar {
+  width: 100%;
+  max-width: 1280px;
+  min-height: 58px;
+  margin: 0 auto 14px;
+  padding: 10px 14px 10px 18px;
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  background: var(--card-bg);
+  box-shadow: 0 3px 14px -3px rgba(15, 23, 42, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-shrink: 0;
+}
+
+.workspace-topbar-copy,
+.workspace-topbar-actions {
+  display: flex;
+  align-items: center;
+}
+
+.workspace-topbar-copy {
+  gap: 10px;
+  min-width: 0;
+}
+
+.workspace-topbar-copy > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.workspace-topbar-copy strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.workspace-topbar-copy small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.workspace-topbar-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.11);
+  color: #047857;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.workspace-topbar-actions {
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-header-outline.btn-admin-access {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.btn-header-outline.btn-admin-access:hover {
+  border-color: #10b981;
+  background: #d1fae5;
+}
+
+[data-theme="dark"] .btn-header-outline.btn-admin-access {
+  border-color: #047857;
+  background: rgba(16, 185, 129, 0.14);
+  color: #a7f3d0;
+}
+
+[data-theme="dark"] .btn-header-outline.btn-admin-access:hover {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.24);
 }
 
 .dashboard-wrapper {
@@ -1639,6 +1724,18 @@ body.modal-open {
     overflow-x: hidden;
   }
 
+  .workspace-topbar {
+    max-width: none;
+    min-height: 56px;
+    margin: 0;
+    padding: 10px 16px;
+    border-top: 0;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+    box-shadow: 0 3px 14px -5px rgba(15, 23, 42, 0.2);
+  }
+
   .dashboard-wrapper {
     padding: 16px 14px;
     border-radius: 0;
@@ -1697,6 +1794,40 @@ body.modal-open {
   /* ── HIDE DESKTOP HEADER (covered by sticky app bar) ── */
   .dashboard-top-header {
     display: none;
+  }
+
+  .workspace-topbar {
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .workspace-topbar-copy {
+    flex: 1;
+  }
+
+  .workspace-topbar-actions {
+    flex-shrink: 0;
+  }
+
+  .workspace-topbar-actions .current-account-badge {
+    display: none;
+  }
+
+  .workspace-topbar-actions .btn-header-outline {
+    min-height: 40px;
+    padding: 8px 11px;
+    white-space: nowrap;
+  }
+
+  .workspace-topbar-actions .btn-header-outline:not(.btn-admin-access) {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+  }
+
+  .workspace-topbar-actions .btn-header-outline:not(.btn-admin-access) i {
+    font-size: 14px;
   }
 
   /* ── MAIN CONTENT AREA ── */

@@ -82,6 +82,35 @@
 
     <!-- Main Workspace Area -->
     <main class="app-main">
+      <header class="workspace-topbar" aria-label="Bilah akses aplikasi">
+        <div class="workspace-topbar-copy">
+          <span class="workspace-topbar-icon" aria-hidden="true">
+            <i class="fa-solid fa-building-columns"></i>
+          </span>
+          <span>
+            <strong>Portal Persuratan</strong>
+            <small>SMAN 2 Wonosari</small>
+          </span>
+        </div>
+        <div class="workspace-topbar-actions">
+          {% if role == 'admin' %}
+            <span class="current-account-badge" title="Akun dan role aktif">
+              <i class="fa-solid fa-user-shield"></i> {{ username }} · {{ role | upper }}
+            </span>
+            <a class="btn-header-outline btn-admin-access" href="{{ url_for('admin_dashboard') }}">
+              <i class="fa-solid fa-screwdriver-wrench"></i> Panel Admin
+            </a>
+          {% elif auth_enabled %}
+            <a class="btn-header-outline btn-admin-access" href="{{ url_for('login', next='/admin') }}">
+              <i class="fa-solid fa-lock"></i> Login Admin
+            </a>
+          {% endif %}
+          <button type="button" class="btn-header-outline" id="helpBtn">
+            <i class="fa-solid fa-circle-question"></i> Bantuan & Panduan
+          </button>
+        </div>
+      </header>
+
       <div class="dashboard-wrapper">
 
         <!-- Top Dashboard Header Bar -->
@@ -92,23 +121,6 @@
               <h2>E-Surat SMADA</h2>
               <div style="font-size: 13px; color: var(--text-secondary);">Sistem Informasi Persuratan Resmi SMAN 2 Wonosari (Izin, Cuti, Sakit, Penugasan, Dispensasi)</div>
             </div>
-          </div>
-          <div class="dashboard-header-actions">
-            {% if role == 'admin' %}
-              <span class="current-account-badge" title="Akun dan role aktif">
-                <i class="fa-solid fa-user-shield"></i> {{ username }} · {{ role | upper }}
-              </span>
-              <a class="btn-header-outline" href="{{ url_for('admin_dashboard') }}">
-                <i class="fa-solid fa-screwdriver-wrench"></i> Admin
-              </a>
-            {% elif auth_enabled %}
-              <a class="btn-header-outline" href="{{ url_for('login', next='/admin') }}">
-                <i class="fa-solid fa-lock"></i> Login Admin
-              </a>
-            {% endif %}
-            <button type="button" class="btn-header-outline" id="helpBtn">
-              <i class="fa-solid fa-circle-question"></i> Bantuan & Panduan
-            </button>
           </div>
         </div>
 

@@ -763,7 +763,9 @@ class AuthenticationTests(unittest.TestCase):
     def test_public_user_admin_gate_and_form_login_logout(self) -> None:
         browser = self.client.get("/", follow_redirects=False)
         self.assertEqual(browser.status_code, 200)
-        self.assertIn("Login Admin", browser.get_data(as_text=True))
+        browser_html = browser.get_data(as_text=True)
+        self.assertIn('class="workspace-topbar"', browser_html)
+        self.assertIn("Login Admin", browser_html)
 
         api = self.client.get("/api/list/guru")
         self.assertEqual(api.status_code, 200)
