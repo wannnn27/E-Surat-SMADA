@@ -180,8 +180,11 @@ def _validate_templates(template_dir: Path) -> dict[str, str]:
                     raise DataValidationError(f"Template DOCX tidak valid: {path.name}")
             template = DocxTemplate(str(path))
             actual_variables = set(template.get_undeclared_template_variables())
-            if int(info.get("max_people", 1)) > 1:
-                person_variables = {"students"}
+            person_mode = str(info.get("person_mode", "single"))
+            if person_mode == "multiple":
+                person_variables = {"people"}
+            elif person_mode == "none":
+                person_variables = set()
             else:
                 person_variables = (
                     {"nama", "nip", "jabatan", "golongan"}

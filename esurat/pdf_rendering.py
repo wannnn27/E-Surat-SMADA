@@ -22,12 +22,54 @@ from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
-from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
 DEFAULT_FONT_SIZE = 12.0
 MAX_STORY_ITEMS = 5_000
 MAX_TABLE_CELLS = 2_000
+
+
+class _EmbeddedImage(Flowable):
+    """Gambar in-memory yang stabil untuk render berulang dalam satu proses."""
+
+    def __init__(self, payload: bytes, width: float, height: float, h_align: str) -> None:
+        super().__init__()
+        self._reader = ImageReader(io.BytesIO(payload))
+        self.drawWidth = width
+        self.drawHeight = height
+        self.hAlign = h_align
+
+    def wrap(self, available_width: float, available_height: float) -> tuple[float, float]:
+        if self.drawWidth > available_width or self.drawHeight > available_height:
+            scale = min(
+                available_width / self.drawWidth,
+                available_height / self.drawHeight,
+            )
+            self.drawWidth *= scale
+            self.drawHeight *= scale
+        return self.drawWidth, self.drawHeight
+
+    def draw(self) -> None:
+        self.canv.drawImage(
+            self._reader,
+            0,
+            0,
+            width=self.drawWidth,
+            height=self.drawHeight,
+            mask="auto",
+        )
+
+    def draw_at(self, canvas, x: float, y: float) -> None:
+        canvas.drawImage(
+            self._reader,
+            x,
+            y,
+            width=self.drawWidth,
+            height=self.drawHeight,
+            mask="auto",
+        )
 
 
 def _points(value, default: float = 0.0) -> float:
@@ -124,8 +166,8 @@ def _paragraph_style(paragraph: DocxParagraph) -> ParagraphStyle:
     )
 
 
-def _paragraph_images(paragraph: DocxParagraph, available_width: float) -> list[Image]:
-    images: list[Image] = []
+def _paragraph_images(paragraph: DocxParagraph, available_width: float) -> list[_EmbeddedImage]:
+    images: list[_EmbeddedImage] = []
     for run in paragraph.runs:
         blips = run._element.xpath(".//a:blip")
         extents = run._element.xpath(".//wp:extent")
@@ -142,9 +184,13 @@ def _paragraph_images(paragraph: DocxParagraph, available_width: float) -> list[
             if width <= 0 or height <= 0:
                 continue
             scale = min(1.0, available_width / width)
-            image = Image(io.BytesIO(related_part.blob), width=width * scale, height=height * scale)
-            image.hAlign = {TA_CENTER: "CENTER", TA_RIGHT: "RIGHT"}.get(
-                _alignment(paragraph), "LEFT"
+            image = _EmbeddedImage(
+                related_part.blob,
+                width * scale,
+                height * scale,
+                {TA_CENTER: "CENTER", TA_RIGHT: "RIGHT"}.get(
+                    _alignment(paragraph), "LEFT"
+                ),
             )
             images.append(image)
     return images
@@ -281,6 +327,16 @@ def render_pdf_from_docx(docx_buffer: io.BytesIO) -> io.BytesIO:
     if available_width < 5 * cm:
         raise RuntimeError("Margin DOCX tidak menyisakan area PDF yang layak")
 
+    story = _story(document, available_width)
+    header_image: _EmbeddedImage | None = None
+    for index, flowable in enumerate(story[:3]):
+        if isinstance(flowable, _EmbeddedImage):
+            header_image = flowable
+            story[index] = Spacer(1, header_image.drawHeight + 3.0)
+            break
+        if not isinstance(flowable, Spacer):
+            break
+
     output = io.BytesIO()
     pdf = SimpleDocTemplate(
         output,
@@ -300,6 +356,18 @@ def render_pdf_from_docx(docx_buffer: io.BytesIO) -> io.BytesIO:
         canvas.setAuthor("SMA Negeri 2 Wonosari")
         canvas.setSubject("Dokumen surat resmi")
 
-    pdf.build(_story(document, available_width), onFirstPage=set_metadata, onLaterPages=set_metadata)
+    def set_first_page(canvas, document_template) -> None:
+        set_metadata(canvas, document_template)
+        if header_image is not None:
+            if header_image.hAlign in {"CENTER", "CENTRE"}:
+                image_x = left_margin + (available_width - header_image.drawWidth) / 2
+            elif header_image.hAlign == "RIGHT":
+                image_x = page_width - right_margin - header_image.drawWidth
+            else:
+                image_x = left_margin
+            image_y = page_height - top_margin - header_image.drawHeight
+            header_image.draw_at(canvas, image_x, image_y)
+
+    pdf.build(story, onFirstPage=set_first_page, onLaterPages=set_metadata)
     _check_rendered_pdf(output)
     return output

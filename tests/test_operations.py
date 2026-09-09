@@ -188,11 +188,85 @@ class DatabaseMigrationTests(unittest.TestCase):
                 version = migrated.execute("PRAGMA user_version").fetchone()[0]
             finally:
                 migrated.close()
-            self.assertEqual(version, 4)
+            self.assertEqual(version, 5)
             self.assertEqual(row["nomor_surat"], "800/001/SMADA/2026")
             self.assertEqual(row["status"], "generated")
             self.assertEqual(row["created_by"], "legacy")
             self.assertEqual(row["created_by_role"], "unknown")
+
+    def test_custom_template_schema_migration_preserves_existing_templates(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="esurat-template-migration-") as temp_dir:
+            database = Path(temp_dir) / "legacy.sqlite3"
+            connection = sqlite3.connect(database)
+            try:
+                connection.execute(
+                    """
+                    CREATE TABLE custom_templates (
+                        key TEXT PRIMARY KEY,
+                        label TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        category TEXT NOT NULL CHECK (category IN ('guru', 'murid')),
+                        default_code TEXT NOT NULL,
+                        signer TEXT NOT NULL CHECK (signer IN ('kepsek', 'pemohon', 'wali')),
+                        fields_json TEXT NOT NULL,
+                        filename TEXT NOT NULL,
+                        content BLOB NOT NULL,
+                        sha256 TEXT NOT NULL,
+                        active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        created_by TEXT NOT NULL
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    INSERT INTO custom_templates (
+                        key, label, description, category, default_code, signer,
+                        fields_json, filename, content, sha256, active,
+                        created_at, updated_at, created_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        "template_lama",
+                        "Template Lama",
+                        "Data template sebelum migrasi.",
+                        "guru",
+                        "800",
+                        "kepsek",
+                        "[]",
+                        "template_lama.docx",
+                        b"legacy-docx",
+                        "abc123",
+                        1,
+                        "2026-09-01T08:00:00+07:00",
+                        "2026-09-01T08:00:00+07:00",
+                        "admin-lama",
+                    ),
+                )
+                connection.commit()
+            finally:
+                connection.close()
+
+            esurat.init_db(database)
+            migrated = sqlite3.connect(database)
+            migrated.row_factory = sqlite3.Row
+            try:
+                row = migrated.execute(
+                    "SELECT * FROM custom_templates WHERE key = 'template_lama'"
+                ).fetchone()
+                columns = {
+                    item["name"]
+                    for item in migrated.execute("PRAGMA table_info(custom_templates)")
+                }
+            finally:
+                migrated.close()
+            self.assertIsNotNone(row)
+            self.assertEqual(row["label"], "Template Lama")
+            self.assertEqual(row["content"], b"legacy-docx")
+            self.assertEqual(row["person_mode"], "single")
+            self.assertIsNone(row["max_people"])
+            self.assertTrue({"person_mode", "max_people"}.issubset(columns))
 
 
 if __name__ == "__main__":

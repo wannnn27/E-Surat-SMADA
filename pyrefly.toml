@@ -1,0 +1,15 @@
+project-includes = [
+    "app.py",
+    "esurat/**/*.py",
+    "scripts/**/*.py",
+    "tests/**/*.py",
+]
+project-excludes = [
+    ".venv/**",
+    "**/__pycache__/**",
+    "qa/**",
+    "backups/**",
+]
+search-path = ["."]
+python-interpreter-path = ".venv/Scripts/python.exe"
+site-package-path = [".venv/Lib/site-packages"]

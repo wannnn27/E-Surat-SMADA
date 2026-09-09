@@ -175,7 +175,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" id="jenisSurat" name="jenis_surat" required>
           <input type="hidden" id="id_value" name="id_value" required>
-          <span id="studentIdsInputs" hidden></span>
+          <span id="personIdsInputs" hidden></span>
           <input type="hidden" id="requestId" name="request_id">
 
           <!-- SINGLE ACTIVE WIZARD CONTAINER CARD (ZERO SCROLL) -->
@@ -218,6 +218,9 @@
                 <button type="button" class="category-tab" id="tabMurid" data-kategori="murid" role="tab" aria-selected="false" aria-controls="gridMurid">
                   <i class="fa-solid fa-user-graduate"></i> Siswa / Murid
                 </button>
+                <button type="button" class="category-tab" id="tabUmum" data-kategori="umum" role="tab" aria-selected="false" aria-controls="gridUmum">
+                  <i class="fa-solid fa-building"></i> Umum / Eksternal
+                </button>
               </div>
 
               <!-- Cards Grid Guru -->
@@ -226,6 +229,7 @@
                 <button type="button" class="surat-select-card" data-key="{{ key }}" data-kategori="guru" aria-pressed="false">
                   <span class="card-top">
                     <span class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></span>
+                    {% if info.is_custom %}<span class="header-pill-badge">Template Admin</span>{% endif %}
                     <i class="fa-solid fa-circle-check card-check-icon"></i>
                   </span>
                   <span class="card-copy">
@@ -245,11 +249,32 @@
                 <button type="button" class="surat-select-card" data-key="{{ key }}" data-kategori="murid" aria-pressed="false">
                   <span class="card-top">
                     <span class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></span>
+                    {% if info.is_custom %}<span class="header-pill-badge purple">Template Admin</span>{% endif %}
                     <i class="fa-solid fa-circle-check card-check-icon"></i>
                   </span>
                   <span class="card-copy">
                     <span class="card-title-text">{{ info.label }}</span>
                     <span class="card-desc-text">{{ info.deskripsi or 'Template izin/dispensasi murid.' }}</span>
+                  </span>
+                  <span class="card-bottom-link">
+                    Pilih Template <i class="fa-solid fa-arrow-right" style="margin-left: 4px; font-size: 11px;"></i>
+                  </span>
+                </button>
+                {% endfor %}
+              </div>
+
+              <!-- Cards Grid Umum / Eksternal -->
+              <div class="surat-card-grid" id="gridUmum" role="tabpanel" aria-labelledby="tabUmum" hidden>
+                {% for key, info in jenis_surat.items() if info.kategori == 'umum' %}
+                <button type="button" class="surat-select-card" data-key="{{ key }}" data-kategori="umum" aria-pressed="false">
+                  <span class="card-top">
+                    <span class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></span>
+                    {% if info.is_custom %}<span class="header-pill-badge">Template Admin</span>{% endif %}
+                    <i class="fa-solid fa-circle-check card-check-icon"></i>
+                  </span>
+                  <span class="card-copy">
+                    <span class="card-title-text">{{ info.label }}</span>
+                    <span class="card-desc-text">{{ info.deskripsi or 'Template surat umum atau eksternal.' }}</span>
                   </span>
                   <span class="card-bottom-link">
                     Pilih Template <i class="fa-solid fa-arrow-right" style="margin-left: 4px; font-size: 11px;"></i>
@@ -382,7 +407,7 @@
           <button type="button" class="surat-select-card template-modal-card" data-key="{{ key }}" aria-pressed="false">
             <span class="card-top">
               <span class="card-icon-box"><i class="fa-solid {{ info.icon or 'fa-file-lines' }}"></i></span>
-              <span class="header-pill-badge">{{ info.kategori | upper }}</span>
+              <span class="header-pill-badge">{{ 'Template Admin' if info.is_custom else info.kategori | upper }}</span>
             </span>
             <span class="card-copy">
               <span class="card-title-text">{{ info.label }}</span>
@@ -494,7 +519,7 @@
       <div class="modal-body help-content">
         <ol>
           <li>Pilih kategori dan template surat yang sesuai.</li>
-          <li>Cari personel, lalu pilih hasil resmi dari database. Surat dispensasi dapat memuat hingga tiga siswa.</li>
+          <li>Jika template memerlukan personel, cari lalu pilih hasil resmi dari database. Surat Perintah/Tugas dapat memuat guru/staf tanpa batas jumlah; dispensasi tetap maksimal tiga siswa.</li>
           <li>Isi detail wajib dan periksa rentang tanggal.</li>
           <li>Periksa Ringkasan Data, lalu unduh dokumen dalam format Word atau PDF.</li>
         </ol>

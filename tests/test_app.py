@@ -72,8 +72,10 @@ class BackendIntegrationTests(unittest.TestCase):
             return f"PDF response ({len(response.data)} bytes)"
         return response.get_data(as_text=True)
 
-    def person_for(self, jenis: str) -> dict[str, str]:
+    def person_for(self, jenis: str) -> dict[str, str] | None:
         kategori = esurat.JENIS_SURAT[jenis]["kategori"]
+        if kategori == "umum":
+            return None
         return self.state["guru"][0] if kategori == "guru" else self.state["murid"][0]
 
     def valid_form(
@@ -86,7 +88,9 @@ class BackendIntegrationTests(unittest.TestCase):
     ) -> dict[str, str]:
         info = esurat.JENIS_SURAT[jenis]
         person = self.person_for(jenis)
-        if info["kategori"] == "guru":
+        if person is None:
+            identifier = ""
+        elif info["kategori"] == "guru":
             identifier = person["nip"]
         else:
             identifier = person["nisn"] if use_nisn else person["nis"]
@@ -108,6 +112,30 @@ class BackendIntegrationTests(unittest.TestCase):
             "nama_kegiatan": "Kegiatan Pengujian",
             "penyelenggara": "Panitia Pengujian",
             "tempat_kegiatan": "Aula Sekolah",
+            "dasar": "Surat undangan resmi dari instansi penyelenggara",
+            "waktu": "08.00 WIB sampai selesai",
+            "tujuan": "Kepala Dinas Pendidikan",
+            "alamat_tujuan": "Kabupaten Gunungkidul",
+            "jenis_barang": "Berkas administrasi sekolah",
+            "jumlah_barang": "1 berkas",
+            "keterangan_pengantar": "Dikirim dengan hormat untuk ditindaklanjuti.",
+            "sifat": "Biasa",
+            "lampiran": "-",
+            "perihal": "Undangan dan koordinasi kegiatan",
+            "penerima": "Ketua Komite SMA Negeri 2 Wonosari",
+            "alamat_penerima": "di Wonosari",
+            "latar_kegiatan": "Sekolah akan menyelenggarakan kegiatan pembinaan karakter peserta didik.",
+            "hari": "Selasa",
+            "barang_hilang": "Kartu ATM PIP",
+            "tempat_tanggal_lahir": "Wonosari, 1 Januari 2010",
+            "nomor_rekening": "1234567890",
+            "nama_ibu_kandung": "IBU PENGUJIAN",
+            "guru_pendamping": "GURU PENDAMPING PENGUJIAN",
+            "nip_guru_pendamping": "190000000000000003",
+            "email_guru_pendamping": "pendamping@example.sch.id",
+            "telepon_guru_pendamping": "081234567890",
+            "kontak_peserta": "peserta@example.sch.id / 081200000001",
+            "acara": "Rapat koordinasi program sekolah",
         }
         for field in info["fields"]:
             name = field["name"]
@@ -208,7 +236,7 @@ class BackendIntegrationTests(unittest.TestCase):
                 self.assertEqual(payload["fields"][1]["default"], info["default_kode"])
                 self.assertFalse(payload["fields"][2]["required"])
 
-    def test_04_all_seven_types_preview_generate_signer_and_no_jinja_tokens(self) -> None:
+    def test_04_all_types_preview_generate_signer_and_no_jinja_tokens(self) -> None:
         generated_numbers: list[str] = []
         for jenis, info in esurat.JENIS_SURAT.items():
             with self.subTest(jenis=jenis):
@@ -221,6 +249,7 @@ class BackendIntegrationTests(unittest.TestCase):
                 person = self.person_for(jenis)
                 signer_kind = info["signer"]
                 if signer_kind == "pemohon":
+                    assert person is not None
                     expected_name = person["nama"]
                     expected_id = person["nip"]
                 elif signer_kind == "wali":
@@ -249,11 +278,21 @@ class BackendIntegrationTests(unittest.TestCase):
                 generated_numbers.append(number)
                 text, xml = self.docx_text_and_xml(generated.data)
                 self.assertNotRegex(xml, esurat.UNRESOLVED_TOKEN_RE)
-                self.assertIn(person["nama"], text)
+                if person is not None:
+                    self.assertIn(person["nama"], text)
                 self.assertIn(expected_name, text)
                 if expected_id:
                     self.assertIn(expected_id, text)
-                self.assertIn("Keterangan & Verifikasi Tata Usaha", text)
+                representative = next(
+                    (
+                        str(form[field["name"]])
+                        for field in info["fields"]
+                        if field["type"] != "date" and str(form.get(field["name"], ""))
+                    ),
+                    "",
+                )
+                if representative:
+                    self.assertIn(representative, text)
 
                 row = self.history_for(form["request_id"])
                 self.assertIsNotNone(row)
@@ -262,8 +301,8 @@ class BackendIntegrationTests(unittest.TestCase):
                 self.assertEqual(len(row["hash"]), 64)
                 self.assertEqual(len(row["payload_hash"]), 64)
                 self.assertIsNone(row["error"])
-        self.assertEqual(len(generated_numbers), 7)
-        self.assertEqual(len(set(generated_numbers)), 7)
+        self.assertEqual(len(generated_numbers), len(esurat.JENIS_SURAT))
+        self.assertEqual(len(set(generated_numbers)), len(esurat.JENIS_SURAT))
 
     def test_05_nisn_search_and_identifier_resolution(self) -> None:
         murid = self.state["murid"][0]
@@ -523,7 +562,7 @@ class BackendIntegrationTests(unittest.TestCase):
         self.assertEqual(too_many_response.status_code, 422)
         self.assertIn("student_ids", too_many_response.get_json()["field_errors"])
 
-    def test_16_all_seven_types_can_generate_pdf(self) -> None:
+    def test_16_all_types_can_generate_pdf(self) -> None:
         for jenis in esurat.JENIS_SURAT:
             with self.subTest(jenis=jenis):
                 form = self.valid_form(jenis)
@@ -538,6 +577,46 @@ class BackendIntegrationTests(unittest.TestCase):
                 row = self.history_for(form["request_id"])
                 self.assertIsNotNone(row)
                 self.assertEqual(row["status"], "generated")
+
+    def test_17_surat_perintah_supports_unlimited_multiperson_and_dasar_precedes_command(self) -> None:
+        info = esurat.JENIS_SURAT["surat_tugas_guru"]
+        self.assertEqual(info["person_mode"], "multiple")
+        self.assertNotIn("max_people", info)
+
+        staff = self.state["guru"]
+        base_form = self.valid_form("surat_tugas_guru")
+        form = MultiDict(
+            [*base_form.items(), *(("person_ids", item["nip"]) for item in staff)]
+        )
+        preview = self.post("/api/preview_render", form)
+        self.assertEqual(preview.status_code, 200, self.response_message(preview))
+        payload = preview.get_json()
+        self.assertEqual(len(payload["people"]), len(staff))
+        self.assertEqual(len(payload["context"]["people"]), len(staff))
+
+        generated = self.post("/generate", form)
+        self.assertEqual(generated.status_code, 200, self.response_message(generated))
+        text, xml = self.docx_text_and_xml(generated.data)
+        self.assertNotRegex(xml, esurat.UNRESOLVED_TOKEN_RE)
+        self.assertLess(text.index("Dasar"), text.index("MEMERINTAHKAN"))
+        for item in staff:
+            self.assertIn(item["nama"], text)
+            self.assertIn(item["nip"], text)
+
+    def test_18_general_letter_does_not_require_personnel(self) -> None:
+        form = self.valid_form("surat_pengantar_umum")
+        self.assertEqual(form["id_value"], "")
+        preview = self.post("/api/preview_render", form)
+        self.assertEqual(preview.status_code, 200, self.response_message(preview))
+        payload = preview.get_json()
+        self.assertEqual(payload["person"], {})
+        self.assertEqual(payload["people"], [])
+
+        generated = self.post("/generate", form)
+        self.assertEqual(generated.status_code, 200, self.response_message(generated))
+        row = self.history_for(form["request_id"])
+        self.assertEqual(row["nama_pemohon"], form["tujuan"])
+        self.assertEqual(row["id_pemohon"], "")
 
 
 class DataContractTests(unittest.TestCase):
@@ -690,7 +769,12 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual(api.status_code, 200)
         self.assertGreater(len(api.get_json()), 0)
 
-        for admin_path in ("/admin", "/admin/templates", "/admin/master-data"):
+        for admin_path in (
+            "/admin",
+            "/admin/history",
+            "/admin/templates",
+            "/admin/master-data",
+        ):
             admin_page = self.client.get(admin_path, follow_redirects=False)
             self.assertEqual(admin_page.status_code, 302)
             self.assertIn("/login?next=", admin_page.headers["Location"])
@@ -740,6 +824,12 @@ class AuthenticationTests(unittest.TestCase):
         templates_page = self.client.get("/admin/templates")
         self.assertEqual(templates_page.status_code, 200)
         self.assertIn("Unggah template DOCX", templates_page.get_data(as_text=True))
+        self.assertIn("Izinkan pembaruan template", templates_page.get_data(as_text=True))
+
+        history_page = self.client.get("/admin/history")
+        self.assertEqual(history_page.status_code, 200)
+        self.assertIn("Audit &amp; pengendalian", history_page.get_data(as_text=True))
+        self.assertIn("Ekspor hasil", history_page.get_data(as_text=True))
 
         master_page = self.client.get("/admin/master-data")
         self.assertEqual(master_page.status_code, 200)
@@ -756,6 +846,25 @@ class AuthenticationTests(unittest.TestCase):
         )
         self.assertEqual(logged_out.status_code, 302)
         self.assertEqual(logged_out.headers["Location"], "/")
+
+        admin_client = self.app.test_client()
+        login_token = admin_client.get("/api/csrf").get_json()["csrf_token"]
+        admin_client.post(
+            "/login",
+            data={
+                "csrf_token": login_token,
+                "username": "operator-tu",
+                "password": "password-pengujian",
+            },
+        )
+        logout_token = admin_client.get("/api/csrf").get_json()["csrf_token"]
+        admin_logout = admin_client.post(
+            "/logout",
+            data={"csrf_token": logout_token, "next": "login"},
+            follow_redirects=False,
+        )
+        self.assertEqual(admin_logout.status_code, 302)
+        self.assertEqual(admin_logout.headers["Location"], "/login")
 
     def test_login_rate_limit(self) -> None:
         token = self.csrf()
@@ -914,6 +1023,25 @@ class PublicAdminWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(first_manual.status_code, 200)
         self.assertEqual(first_manual.headers["X-Letter-Number"], manual_number)
+        conn = sqlite3.connect(self.database)
+        try:
+            manual_record_id = conn.execute(
+                "SELECT id FROM riwayat_surat WHERE request_id = ?", (form["request_id"],)
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        cancelled_from_admin = admin.post(
+            f"/admin/history/{manual_record_id}/cancel",
+            data={
+                "_csrf_token": admin_csrf,
+                "reason": "Nomor manual dibatalkan dalam pengujian",
+                "confirm": "CANCEL",
+                "page": "1",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(cancelled_from_admin.status_code, 302)
+        self.assertIn("/admin/history?success=", cancelled_from_admin.headers["Location"])
         form["request_id"] = str(uuid.uuid4())
         duplicate_manual = admin.post(
             "/generate", data=form, headers={"X-CSRFToken": admin_csrf}
@@ -942,6 +1070,32 @@ class PublicAdminWorkflowTests(unittest.TestCase):
         self.assertEqual(uploaded.status_code, 302, uploaded.get_data(as_text=True))
         self.assertIn("/admin/templates?success=", uploaded.headers["Location"])
         self.assertIn("custom_izin_murid", self.app.extensions["letter_registry"])
+        user_catalog = admin.get("/").get_data(as_text=True)
+        self.assertIn("Template Izin Murid Tambahan", user_catalog)
+        self.assertIn("Template Admin", user_catalog)
+        public_config = admin.get("/api/fields/custom_izin_murid").get_json()
+        self.assertTrue(public_config["is_custom"])
+        self.assertEqual(public_config["person_mode"], "single")
+
+        duplicate_without_confirmation = admin.post(
+            "/admin/templates",
+            data={
+                "_csrf_token": admin_csrf,
+                "key": "custom_izin_murid",
+                "label": "Template Izin Murid Pengganti",
+                "description": "Percobaan pembaruan tanpa konfirmasi eksplisit.",
+                "category": "murid",
+                "signer": "wali",
+                "default_code": "400.3.8.9",
+                "template_file": (io.BytesIO(template_bytes), "replacement.docx"),
+            },
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(duplicate_without_confirmation.status_code, 422)
+        self.assertIn(
+            "centang konfirmasi penggantian",
+            duplicate_without_confirmation.get_data(as_text=True),
+        )
 
         student = self.app.extensions["esurat_data"]["murid"][0]
         form = {
@@ -985,6 +1139,186 @@ class PublicAdminWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(deleted.status_code, 302)
         self.assertNotIn("custom_izin_murid", self.app.extensions["letter_registry"])
+
+    def test_admin_custom_template_supports_unlimited_multiperson(self) -> None:
+        admin = self.app.test_client()
+        admin_csrf = self.login(admin, "admin-satu", "password-admin")
+        builtin = esurat.JENIS_SURAT["surat_tugas_guru"]
+        template_bytes = (esurat.TEMPLATE_DIR / builtin["template"]).read_bytes()
+        uploaded = admin.post(
+            "/admin/templates",
+            data={
+                "_csrf_token": admin_csrf,
+                "key": "custom_perintah_tim",
+                "label": "Surat Perintah Tim Kustom",
+                "description": "Template admin untuk personel tanpa batas jumlah.",
+                "category": "guru",
+                "person_mode": "multiple",
+                "max_people": "",
+                "signer": "kepsek",
+                "default_code": "800.1.11.1",
+                "template_file": (io.BytesIO(template_bytes), "perintah-tim.docx"),
+            },
+            content_type="multipart/form-data",
+            follow_redirects=False,
+        )
+        self.assertEqual(uploaded.status_code, 302, uploaded.get_data(as_text=True))
+        info = self.app.extensions["letter_registry"]["custom_perintah_tim"]
+        self.assertEqual(info["person_mode"], "multiple")
+        self.assertIsNone(info["max_people"])
+
+        form = MultiDict(
+            [
+                ("jenis_surat", "custom_perintah_tim"),
+                ("kategori", "guru"),
+                ("id_value", ""),
+                ("tanggal_surat", "2026-08-23"),
+                ("kode_arsip", "800.1.11.1"),
+                ("nomor_surat_custom", ""),
+                ("dasar", "Undangan rapat koordinasi dari instansi mitra."),
+                ("tanggal_mulai", "2026-08-24"),
+                ("tanggal_selesai", "2026-08-24"),
+                ("waktu", "08.00 WIB - selesai"),
+                ("tempat_kegiatan", "Ruang Rapat"),
+                ("keperluan", "Mengikuti rapat koordinasi."),
+                ("request_id", str(uuid.uuid4())),
+                *(
+                    ("person_ids", item["nip"])
+                    for item in self.app.extensions["esurat_data"]["guru"]
+                ),
+            ]
+        )
+        generated = admin.post("/generate", data=form, headers={"X-CSRFToken": admin_csrf})
+        self.assertEqual(
+            generated.status_code,
+            200,
+            BackendIntegrationTests.response_message(generated),
+        )
+        text, xml = BackendIntegrationTests.docx_text_and_xml(generated.data)
+        self.assertNotRegex(xml, esurat.UNRESOLVED_TOKEN_RE)
+        for item in self.app.extensions["esurat_data"]["guru"]:
+            self.assertIn(item["nama"], text)
+
+        deleted = admin.post(
+            "/admin/templates/custom_perintah_tim/delete",
+            data={"_csrf_token": admin_csrf, "confirm": "DELETE"},
+            follow_redirects=False,
+        )
+        self.assertEqual(deleted.status_code, 302)
+
+    def test_admin_custom_template_supports_general_letter_without_personnel(self) -> None:
+        admin = self.app.test_client()
+        admin_csrf = self.login(admin, "admin-satu", "password-admin")
+        builtin = esurat.JENIS_SURAT["surat_pengantar_umum"]
+        template_bytes = (esurat.TEMPLATE_DIR / builtin["template"]).read_bytes()
+        uploaded = admin.post(
+            "/admin/templates",
+            data={
+                "_csrf_token": admin_csrf,
+                "key": "custom_pengantar_umum",
+                "label": "Surat Pengantar Umum Kustom",
+                "description": "Template admin tanpa pilihan personel.",
+                "category": "umum",
+                "person_mode": "none",
+                "max_people": "",
+                "signer": "kepsek",
+                "default_code": "000",
+                "template_file": (io.BytesIO(template_bytes), "pengantar-umum.docx"),
+            },
+            content_type="multipart/form-data",
+            follow_redirects=False,
+        )
+        self.assertEqual(uploaded.status_code, 302, uploaded.get_data(as_text=True))
+        info = self.app.extensions["letter_registry"]["custom_pengantar_umum"]
+        self.assertEqual(info["kategori"], "umum")
+        self.assertEqual(info["person_mode"], "none")
+
+        form = {
+            "jenis_surat": "custom_pengantar_umum",
+            "kategori": "umum",
+            "id_value": "",
+            "tanggal_surat": "2026-08-23",
+            "kode_arsip": "000",
+            "nomor_surat_custom": "",
+            "tujuan": "Kepala Dinas Pendidikan",
+            "alamat_tujuan": "Kabupaten Gunungkidul",
+            "jenis_barang": "Dokumen administrasi sekolah",
+            "jumlah_barang": "1 berkas",
+            "keterangan_pengantar": "Mohon ditindaklanjuti sebagaimana mestinya.",
+            "request_id": str(uuid.uuid4()),
+        }
+        generated = admin.post("/generate", data=form, headers={"X-CSRFToken": admin_csrf})
+        self.assertEqual(
+            generated.status_code,
+            200,
+            BackendIntegrationTests.response_message(generated),
+        )
+        text, xml = BackendIntegrationTests.docx_text_and_xml(generated.data)
+        self.assertNotRegex(xml, esurat.UNRESOLVED_TOKEN_RE)
+        self.assertIn("Kepala Dinas Pendidikan", text)
+
+        deleted = admin.post(
+            "/admin/templates/custom_pengantar_umum/delete",
+            data={"_csrf_token": admin_csrf, "confirm": "DELETE"},
+            follow_redirects=False,
+        )
+        self.assertEqual(deleted.status_code, 302)
+
+    def test_uploaded_template_refreshes_an_already_running_user_instance(self) -> None:
+        second_app = esurat.create_app(
+            {
+                "TESTING": True,
+                "DATA_DIR": FIXTURE_DATA_DIR,
+                "DATABASE": self.database,
+                "INIT_DB_ON_CREATE": True,
+                "SECRET_KEY": "second-instance-secret",
+                "AUTH_USERS_FILE": str(self.users_file),
+                "AUTH_USERNAME": "",
+                "AUTH_PASSWORD": "",
+                "AUTH_PASSWORD_HASH": "",
+                "AUTH_ENABLED": True,
+                "BIND_HOST": "127.0.0.1",
+                "KEPSEK_NIP": TEST_KEPSEK_NIP,
+                "NOW_FUNC": lambda: FIXED_NOW,
+            }
+        )
+        self.assertNotIn(
+            "custom_lintas_instance", second_app.extensions["letter_registry"]
+        )
+
+        admin = self.app.test_client()
+        admin_csrf = self.login(admin, "admin-satu", "password-admin")
+        template_bytes = (esurat.TEMPLATE_DIR / "izin_murid.docx").read_bytes()
+        uploaded = admin.post(
+            "/admin/templates",
+            data={
+                "_csrf_token": admin_csrf,
+                "key": "custom_lintas_instance",
+                "label": "Template Lintas Instance",
+                "description": "Template harus langsung terlihat oleh proses user lain.",
+                "category": "murid",
+                "person_mode": "single",
+                "signer": "wali",
+                "default_code": "400.3.8.9",
+                "template_file": (io.BytesIO(template_bytes), "lintas-instance.docx"),
+            },
+            content_type="multipart/form-data",
+            follow_redirects=False,
+        )
+        self.assertEqual(uploaded.status_code, 302, uploaded.get_data(as_text=True))
+
+        user_catalog = second_app.test_client().get("/").get_data(as_text=True)
+        self.assertIn("Template Lintas Instance", user_catalog)
+        self.assertIn(
+            "custom_lintas_instance", second_app.extensions["letter_registry"]
+        )
+
+        deleted = admin.post(
+            "/admin/templates/custom_lintas_instance/delete",
+            data={"_csrf_token": admin_csrf, "confirm": "DELETE"},
+            follow_redirects=False,
+        )
+        self.assertEqual(deleted.status_code, 302)
 
 
 if __name__ == "__main__":

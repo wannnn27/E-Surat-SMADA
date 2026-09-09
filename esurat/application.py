@@ -49,9 +49,11 @@ from .database import (
     _reserve_letter,
     _sql,
     _table,
+    custom_templates_fingerprint,
     delete_custom_template,
     init_db,
     load_custom_templates,
+    load_custom_templates_fingerprint,
     save_custom_template,
     verify_postgres_runtime,
 )
@@ -189,6 +191,18 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         )
         app.extensions["letter_registry"] = registry
         app.extensions["template_hashes"] = hashes
+        app.extensions["custom_template_fingerprint"] = custom_templates_fingerprint(
+            custom_templates
+        )
+
+    def refresh_custom_templates_if_changed() -> None:
+        database = app.config["DATABASE"]
+        fingerprint = load_custom_templates_fingerprint(database)
+        if fingerprint == app.extensions.get("custom_template_fingerprint"):
+            return
+        with database_lock:
+            if fingerprint != app.extensions.get("custom_template_fingerprint"):
+                refresh_custom_templates()
 
     def letter_registry() -> dict[str, dict[str, Any]]:
         return app.extensions["letter_registry"]
@@ -226,6 +240,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 return _json_error("Akses tanpa autentikasi hanya diizinkan dari komputer lokal", 403)
         admin_endpoints = {
             "admin_dashboard",
+            "admin_history",
+            "admin_history_cancel",
             "admin_master_data",
             "admin_templates",
             "admin_template_delete",
@@ -255,6 +271,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                     }
                 ), 403
         ensure_database_initialized()
+        if endpoint != "static":
+            refresh_custom_templates_if_changed()
         return None
 
     @app.after_request
@@ -418,6 +436,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         session.clear()
         if request.is_json:
             return jsonify({"ok": True})
+        if request.form.get("next") == "login" and app.config["AUTH_ENABLED"]:
+            return redirect(url_for("login"))
         return redirect(url_for("index"))
 
     def admin_shell_context(active_page: str) -> dict[str, Any]:
@@ -590,12 +610,22 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 content,
                 set(state["kode_by_value"]),
             )
-            if template["key"] in JENIS_SURAT:
-                raise RequestValidationError(
-                    "Template belum valid",
-                    {"key": "key tersebut dipakai template bawaan dan tidak dapat ditimpa"},
-                    422,
-                )
+            existing_template = letter_registry().get(template["key"])
+            if existing_template:
+                if not existing_template.get("is_custom"):
+                    key_error = "key tersebut dipakai template bawaan dan tidak dapat ditimpa"
+                elif request.form.get("confirm_replace") != "REPLACE":
+                    key_error = (
+                        "key sudah digunakan; centang konfirmasi penggantian jika memang ingin memperbarui"
+                    )
+                else:
+                    key_error = ""
+                if key_error:
+                    raise RequestValidationError(
+                        "Template belum valid",
+                        {"key": key_error},
+                        422,
+                    )
             save_custom_template(app.config["DATABASE"], template)
             refresh_custom_templates()
         except RequestValidationError as exc:
@@ -737,17 +767,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         where_sql = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         return where_sql, params
 
-    @app.get("/api/list/riwayat")
-    def api_list_riwayat():
+    def load_history_page(page: int, per_page: int, *, clamp_page: bool = False):
         where_sql, params = history_filter_sql()
-        try:
-            page = int(request.args.get("page", "1"))
-            per_page = int(request.args.get("per_page", "25"))
-        except ValueError:
-            return _json_error("Paginasi riwayat tidak valid", 400)
-        if page < 1 or not 1 <= per_page <= 100:
-            return _json_error("Paginasi riwayat di luar batas", 400)
-
         database = app.config["DATABASE"]
         postgres = _is_postgres(database)
         history_table = _table("riwayat_surat", postgres)
@@ -761,6 +782,9 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 params,
             ).fetchone()
             total = int(count_row["total"])
+            pages = (total + per_page - 1) // per_page
+            if clamp_page:
+                page = min(page, max(pages, 1))
             rows = conn.execute(
                 _sql(f"""
                 SELECT id, created_at, updated_at, jenis_surat, jenis_key, nomor_surat,
@@ -772,15 +796,113 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             ).fetchall()
         finally:
             conn.close()
-        return jsonify(
+        return {
+            "items": [dict(row) for row in rows],
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "pages": pages,
+        }
+
+    @app.get("/admin/history")
+    def admin_history():
+        try:
+            page = max(1, int(request.args.get("page", "1")))
+        except ValueError:
+            page = 1
+        history = load_history_page(page, 20, clamp_page=True)
+        for item in history["items"]:
+            item["created_at_display"] = format_admin_timestamp(item.get("created_at"))
+
+        filters = {
+            "q": _request_value(request.args, "q"),
+            "status": _request_value(request.args, "status").casefold(),
+            "jenis": _request_value(request.args, "jenis"),
+        }
+        filter_args = {key: value for key, value in filters.items() if value}
+        context = admin_shell_context("history")
+        context.update(
             {
-                "items": [dict(row) for row in rows],
-                "page": page,
-                "per_page": per_page,
-                "total": total,
-                "pages": (total + per_page - 1) // per_page,
+                "history": history,
+                "filters": filters,
+                "letter_types": [
+                    {"key": key, "label": info["label"]}
+                    for key, info in letter_registry().items()
+                ],
+                "export_url": url_for("api_export_history", **filter_args),
+                "previous_url": (
+                    url_for(
+                        "admin_history",
+                        page=history["page"] - 1,
+                        **filter_args,
+                    )
+                    if history["page"] > 1
+                    else ""
+                ),
+                "next_url": (
+                    url_for(
+                        "admin_history",
+                        page=history["page"] + 1,
+                        **filter_args,
+                    )
+                    if history["page"] < history["pages"]
+                    else ""
+                ),
+                "success": _request_value(request.args, "success"),
+                "error": _request_value(request.args, "error"),
             }
         )
+        return render_template("admin_history.html", **context)
+
+    @app.post("/admin/history/<int:record_id>/cancel")
+    def admin_history_cancel(record_id: int):
+        return_args: dict[str, Any] = {}
+        return_query = _normalize_text(request.form.get("q", ""))
+        return_status = _normalize_text(request.form.get("status", "")).casefold()
+        return_type = _normalize_text(request.form.get("jenis", ""))
+        if return_query and len(return_query) <= MAX_QUERY_LENGTH:
+            return_args["q"] = return_query
+        if return_status in {"rendering", "generated", "failed", "cancelled"}:
+            return_args["status"] = return_status
+        if return_type and TEMPLATE_KEY_RE.fullmatch(return_type):
+            return_args["jenis"] = return_type
+        try:
+            page = max(1, int(request.form.get("page", "1")))
+        except ValueError:
+            page = 1
+        if page > 1:
+            return_args["page"] = page
+
+        reason = _normalize_text(request.form.get("reason", ""))
+        reason_error = _validate_safe_text(reason, max_length=300)
+        if request.form.get("confirm") != "CANCEL":
+            message = "Centang konfirmasi bahwa nomor surat tidak akan digunakan kembali."
+            return redirect(url_for("admin_history", error=message, **return_args))
+        if reason_error or len(reason) < 5:
+            message = reason_error or "Alasan pembatalan minimal 5 karakter."
+            return redirect(url_for("admin_history", error=message, **return_args))
+        try:
+            _cancel_letter(record_id, reason)
+        except RequestValidationError as exc:
+            return redirect(url_for("admin_history", error=exc.message, **return_args))
+        return redirect(
+            url_for(
+                "admin_history",
+                success="Surat berhasil dibatalkan; nomor tetap tersimpan dalam riwayat.",
+                **return_args,
+            )
+        )
+
+    @app.get("/api/list/riwayat")
+    def api_list_riwayat():
+        try:
+            page = int(request.args.get("page", "1"))
+            per_page = int(request.args.get("per_page", "25"))
+        except ValueError:
+            return _json_error("Paginasi riwayat tidak valid", 400)
+        if page < 1 or not 1 <= per_page <= 100:
+            return _json_error("Paginasi riwayat di luar batas", 400)
+        return jsonify(load_history_page(page, per_page))
 
     @app.get("/api/history/export.csv")
     def api_export_history():
@@ -887,7 +1009,11 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         info = _public_info(
             validated["jenis"], validated["info"], validated["normalized"]["tanggal_surat"], combined=True
         )
-        person = _public_person(validated["person"], validated["info"]["kategori"], directory=True)
+        person = (
+            _public_person(validated["person"], validated["info"]["kategori"], directory=True)
+            if validated["person"] is not None
+            else {}
+        )
         people = [
             _public_person(item, validated["info"]["kategori"], directory=True)
             for item in validated["people"]
@@ -897,7 +1023,11 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 "info": info,
                 "context": validated["context"],
                 "person": person,
-                "students": people if int(validated["info"].get("max_people", 1)) > 1 else [],
+                "people": people,
+                "students": people
+                if validated["info"]["kategori"] == "murid"
+                and validated["info"].get("person_mode") == "multiple"
+                else [],
                 "signer": validated["signer"],
                 "request_id": validated["normalized"]["request_id"],
                 "preview_notice": "Ringkasan tervalidasi; nomor otomatis dialokasikan saat unduh.",
@@ -937,9 +1067,17 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         if should_mark:
             _mark_letter_status(reservation["id"], "generated")
 
-        safe_name = secure_filename(validated["person"]["nama"]) or "personel"
+        subject_name = (
+            validated["person"]["nama"]
+            if validated["person"] is not None
+            else validated["context"].get("penerima")
+            or validated["context"].get("tujuan")
+            or validated["info"]["label"]
+        )
+        safe_name = secure_filename(subject_name) or "surat"
         if len(validated["people"]) > 1:
-            safe_name = f"{safe_name}-dan-{len(validated['people']) - 1}-siswa"
+            group_noun = "siswa" if validated["info"]["kategori"] == "murid" else "orang"
+            safe_name = f"{safe_name}-dan-{len(validated['people']) - 1}-{group_noun}"
         extension = ".pdf" if output_format == "pdf" else ".docx"
         filename = f"{validated['jenis']}_{safe_name}"[: 180 - len(extension)] + extension
         mimetype = (

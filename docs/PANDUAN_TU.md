@@ -4,7 +4,7 @@ Panduan ini ditujukan kepada pengguna Tata Usaha dan administrator teknis SMAN 2
 
 ## Batas penggunaan
 
-E-Surat saat ini hanya mendukung tujuh jenis surat otomatis:
+E-Surat saat ini menyediakan 13 jenis surat otomatis:
 
 1. Permohonan izin guru/staf.
 2. Permohonan cuti guru/staf.
@@ -13,11 +13,17 @@ E-Surat saat ini hanya mendukung tujuh jenis surat otomatis:
 5. Surat keterangan guru/staf.
 6. Izin tidak masuk siswa.
 7. Dispensasi kegiatan untuk satu sampai tiga siswa dalam satu surat.
+8. Surat pengantar umum/eksternal.
+9. Surat pengantar cuti guru/staf.
+10. Permohonan penceramah.
+11. Surat keterangan kehilangan milik siswa.
+12. Surat rekomendasi siswa.
+13. Undangan umum/eksternal.
 
 Administrator memantau ringkasan operasional dari dashboard `/admin` dan dapat
 menambahkan template DOCX lain dari menu **Template Surat** (`/admin/templates`).
 
-Folder `templates_surat/active/` berisi 7 template aktif, `legacy/` berisi **18 dokumen belum aktif**, dan `master/` berisi satu master teknis kop. Jangan mengaktifkan dokumen legacy dengan mengganti nama atau menyalin tag tanpa proses migrasi dan uji pada [Audit Produksi](AUDIT_PRODUKSI.md#backlog-migrasi-18-template).
+Folder `templates_surat/active/` berisi 13 template aktif, `legacy/` berisi **18 dokumen belum aktif**, dan `master/` berisi satu master teknis kop. Jangan mengaktifkan dokumen legacy dengan mengganti nama atau menyalin tag tanpa proses migrasi dan uji pada [Audit Produksi](AUDIT_PRODUKSI.md#backlog-migrasi-18-template).
 
 Ringkasan di layar adalah ringkasan data tervalidasi, bukan tampilan halaman Word. DOCX hasil generate belum dianggap final sampai diperiksa dan disetujui sesuai prosedur sekolah.
 
@@ -70,9 +76,10 @@ Pengguna:
 
 ### 1. Pilih kategori dan jenis surat
 
-Pilih kategori guru/staf atau siswa, lalu pilih salah satu dari tujuh jenis aktif. Pastikan tujuan surat sesuai dengan label dan penandatangan yang berlaku:
+Pilih kategori guru/staf, siswa, atau umum/eksternal, lalu pilih jenis surat yang sesuai. Pastikan tujuan surat sesuai dengan label dan penandatangan yang berlaku:
 
-- Surat tugas, surat keterangan, dan dispensasi ditandatangani Kepala Sekolah.
+- Surat tugas/perintah dapat memuat guru/staf tanpa batas jumlah; dispensasi tetap dibatasi satu sampai tiga siswa.
+- Surat tugas, surat keterangan, pengantar, rekomendasi, permohonan, dan undangan ditandatangani Kepala Sekolah.
 - Permohonan izin, cuti, dan sakit guru/staf ditandatangani pemohon.
 - Izin siswa ditandatangani orang tua/wali.
 
@@ -142,10 +149,10 @@ Setelah disetujui, simpan DOCX/PDF final sesuai tata nama, klasifikasi, retensi,
 
 ### 8. Riwayat, ekspor, dan pembatalan
 
-- Login sebagai admin; menu Riwayat tidak tersedia untuk pengguna umum.
+- Login sebagai admin, lalu pilih **Riwayat Surat** di panel admin; menu ini tidak tersedia untuk pengguna umum.
 - Gunakan pencarian serta filter status/jenis; navigasikan halaman bila hasil banyak.
-- `Ekspor CSV` mengekspor hasil sesuai filter aktif. Simpan CSV sebagai PII di lokasi terbatas dan hapus dari Downloads setelah dipindahkan.
-- Pembatalan hanya tersedia untuk admin dan wajib memiliki alasan minimal lima karakter.
+- **Ekspor hasil** mengekspor CSV sesuai filter aktif. Simpan CSV sebagai PII di lokasi terbatas dan hapus dari Downloads setelah dipindahkan.
+- Untuk membatalkan, buka tindakan **Batalkan**, isi alasan minimal lima karakter, lalu centang konfirmasi bahwa nomor tidak dapat dipakai kembali.
 - Pembatalan tidak menghapus record dan tidak membuat nomor dapat digunakan ulang.
 - Untuk surat pengganti, batalkan sesuai SOP lalu buat surat baru. Catat hubungan nomor lama-baru pada register resmi karena kandidat belum memiliki relasi koreksi digital.
 
@@ -209,16 +216,29 @@ Lokasi Excel alternatif dapat diberikan dengan `--guru-file`, `--murid-file`, da
 
 ### Rebuild template
 
-`scripts/build_docx_templates.py` hanya membangun ulang tujuh template di `templates_surat/active/`. Ia memakai `templates_surat/master/kop_smada.docx` sebagai sumber teknis dan tidak mengaktifkan 18 template di `legacy/`.
+`scripts/build_docx_templates.py` membangun ulang 13 template di `templates_surat/active/`. Ia memakai `templates_surat/master/kop_smada.docx` sebagai sumber teknis dan tidak mengaktifkan 18 template di `legacy/`.
 
 Untuk template tambahan, login sebagai admin, buka **Template Surat**, lalu unggah
-DOCX maksimal 4 MB. Template wajib memiliki placeholder `nomor_surat`,
-`tanggal_surat`, dan `nama`; placeholder lain otomatis menjadi field formulir.
-Template tambahan disimpan di database privat dan dapat dihapus dari halaman template
-dengan konfirmasi. Template bawaan tidak dapat ditimpa atau dihapus dari panel.
+DOCX maksimal 4 MB. Semua template wajib memiliki placeholder `nomor_surat` dan
+`tanggal_surat`. Pilih mode personel sesuai struktur dokumen:
+
+- **Satu personel**: tambahkan placeholder `nama`; data identitas lain seperti
+  `nip`, `nis`, `jabatan`, dan `kelas` disediakan sistem sesuai kategori.
+- **Banyak personel**: buat baris tabel berulang Docxtpl dengan
+  `{%tr for person in people %}` dan `{%tr endfor %}`. Gunakan nilai seperti
+  `person.nama`, `person.nip`, atau `person.jabatan`. Batas personel boleh
+  dikosongkan agar tidak dibatasi.
+- **Tanpa personel**: khusus kategori umum/eksternal dan tidak memerlukan
+  placeholder `nama`.
+
+Placeholder lain otomatis menjadi field formulir di sisi user. Setelah lolos
+validasi, template langsung aktif di katalog user dan tersimpan di database privat.
+Template dapat dihapus dari halaman admin dengan konfirmasi. Jika key sudah
+digunakan, pembaruan hanya dilakukan setelah administrator mencentang konfirmasi
+penggantian. Template bawaan tidak dapat ditimpa atau dihapus dari panel.
 
 1. Jadwalkan maintenance dan hentikan penerbitan surat.
-2. Backup/versioning ketujuh DOCX aktif dan master kop di lokasi privat.
+2. Backup/versioning seluruh 13 DOCX aktif dan master kop di lokasi privat.
 3. Jalankan:
 
    ```powershell
@@ -234,7 +254,7 @@ dengan konfirmasi. Template bawaan tidak dapat ditimpa atau dihapus dari panel.
    python scripts/generate_qa_letters.py
    ```
 
-7. Pastikan seluruh automated test lulus. Buka ketujuh file sintetis di `qa/generated/` dan periksa Word serta Print Preview. QA otomatis tidak membaca data master produksi.
+7. Pastikan seluruh automated test lulus. Buka seluruh 13 file sintetis di `qa/generated/` dan periksa Word serta Print Preview. QA otomatis tidak membaca data master produksi.
 8. Catat siapa yang menyetujui template dan hash/rilisnya.
 
 ### Backup
@@ -275,7 +295,7 @@ Restore adalah operasi admin dan memerlukan persetujuan pemilik layanan. Rollbac
 6. Pastikan file berada pada folder yang benar dan hak akses tetap terbatas.
 7. Start ulang satu instance aplikasi dengan environment produksi yang benar.
 8. Periksa `/healthz`, laporan/sampel master, beberapa pencarian, login, dan Riwayat.
-9. Jalankan automated test dan QA tujuh template, lalu buka DOCX hasilnya.
+9. Jalankan automated test dan QA seluruh 13 template, lalu buka DOCX hasilnya.
 10. Rekonsiliasi nomor surat terhadap register/arsip nyata. Tandai nomor yang pernah terbit; jangan menghapus atau menggunakan ulang nomor hanya karena tidak ada di database hasil restore.
 11. Minta pengguna TU/pemilik layanan menyetujui pembukaan kembali.
 12. Dokumentasikan backup yang dipakai, hash, pelaksana, hasil uji, dan tindakan pencegahan.
@@ -297,7 +317,7 @@ Sebelum pilot dimulai, pemilik layanan menandatangani bahwa:
 - LAN menggunakan autentikasi, secret stabil, HTTPS, firewall, dan sertifikat tepercaya;
 - backup serta simulasi restore berhasil;
 - data master dan Kepala Sekolah telah diverifikasi;
-- automated test serta tujuh jenis aktif lulus QA data, Word, dan cetak;
+- automated test serta 13 jenis aktif lulus QA data, Word, dan cetak;
 - kebijakan nomor manual, pembatalan, retensi, serta eskalasi sudah tertulis;
 - pengguna TU telah dilatih dan masa pilot memakai pemeriksaan dua orang;
 - 18 template belum aktif dinyatakan di luar cakupan;

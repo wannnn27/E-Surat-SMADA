@@ -1,8 +1,11 @@
 [
+  {"kode": "000", "keterangan": "Umum (fixture)"},
   {"kode": "800.1.11", "keterangan": "Izin pegawai (fixture)"},
   {"kode": "800.1.11.4", "keterangan": "Cuti pegawai (fixture)"},
   {"kode": "800.1.11.2", "keterangan": "Sakit pegawai (fixture)"},
   {"kode": "800.1.11.1", "keterangan": "Tugas pegawai (fixture)"},
   {"kode": "400.3.8.9", "keterangan": "Izin siswa (fixture)"},
+  {"kode": "400.3.8.6", "keterangan": "Kegiatan dan lomba siswa (fixture)"},
+  {"kode": "400.3.8.8", "keterangan": "Administrasi bantuan siswa (fixture)"},
   {"kode": "400.3.8.10", "keterangan": "Dispensasi siswa (fixture)"}
 ]

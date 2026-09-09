@@ -1,0 +1,138 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Riwayat Surat{% endblock %}
+{% block eyebrow %}Audit &amp; pengendalian{% endblock %}
+{% block heading %}Riwayat Surat{% endblock %}
+{% block description %}Cari, periksa, ekspor, atau batalkan surat tanpa meninggalkan panel admin.{% endblock %}
+{% block actions %}
+  <a class="admin-btn admin-btn-secondary" href="{{ export_url }}">
+    <i class="fa-solid fa-file-csv"></i> Ekspor hasil
+  </a>
+{% endblock %}
+
+{% block content %}
+  <section class="admin-panel admin-history-panel">
+    <form class="admin-history-filters" method="get" action="{{ url_for('admin_history') }}">
+      <label class="admin-history-search">
+        <span>Cari riwayat</span>
+        <span class="admin-input-icon"><i class="fa-solid fa-magnifying-glass"></i></span>
+        <input type="search" name="q" maxlength="100" value="{{ filters.q }}" placeholder="Nomor, nama, identitas, atau keperluan">
+      </label>
+      <label>
+        <span>Status</span>
+        <select name="status">
+          <option value="">Semua status</option>
+          <option value="generated"{% if filters.status == 'generated' %} selected{% endif %}>Terbit</option>
+          <option value="rendering"{% if filters.status == 'rendering' %} selected{% endif %}>Diproses</option>
+          <option value="failed"{% if filters.status == 'failed' %} selected{% endif %}>Gagal</option>
+          <option value="cancelled"{% if filters.status == 'cancelled' %} selected{% endif %}>Dibatalkan</option>
+        </select>
+      </label>
+      <label>
+        <span>Jenis surat</span>
+        <select name="jenis">
+          <option value="">Semua jenis</option>
+          {% for item in letter_types %}
+            <option value="{{ item.key }}"{% if filters.jenis == item.key %} selected{% endif %}>{{ item.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="admin-history-filter-actions">
+        <button class="admin-btn admin-btn-primary" type="submit"><i class="fa-solid fa-filter"></i> Terapkan</button>
+        <a class="admin-btn admin-btn-secondary" href="{{ url_for('admin_history') }}">Reset</a>
+      </div>
+    </form>
+
+    <div class="admin-history-summary">
+      <p><strong>{{ history.total }}</strong> surat ditemukan{% if filters.q or filters.status or filters.jenis %} berdasarkan filter aktif{% endif %}.</p>
+      <span>Halaman {{ history.page }}{% if history.pages %} dari {{ history.pages }}{% endif %}</span>
+    </div>
+
+    {% if history['items'] %}
+      <div class="admin-table-wrap">
+        <table class="admin-table admin-history-table">
+          <thead>
+            <tr>
+              <th>Surat</th>
+              <th>Pemohon</th>
+              <th>Operator</th>
+              <th>Waktu</th>
+              <th>Status</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in history['items'] %}
+              <tr>
+                <td>
+                  <strong>{{ item.nomor_surat or '-' }}</strong>
+                  <small>{{ item.jenis_surat or 'Jenis surat tidak tercatat' }}</small>
+                </td>
+                <td>
+                  <strong>{{ item.nama_pemohon or '-' }}</strong>
+                  <small>{{ item.id_pemohon or '-' }} · {{ item.kategori | upper }}</small>
+                </td>
+                <td>
+                  <span>{{ item.created_by or 'data lama' }}</span>
+                  <small>{{ item.created_by_role or '-' }}</small>
+                </td>
+                <td class="admin-table-muted">{{ item.created_at_display }}</td>
+                <td>
+                  {% if item.status == 'generated' %}
+                    <span class="admin-status status-success">Terbit</span>
+                  {% elif item.status == 'cancelled' %}
+                    <span class="admin-status status-danger">Dibatalkan</span>
+                  {% elif item.status == 'rendering' %}
+                    <span class="admin-status status-warning">Diproses</span>
+                  {% else %}
+                    <span class="admin-status status-danger">Gagal</span>
+                  {% endif %}
+                  {% if item.cancel_reason %}<small class="admin-cancel-reason">{{ item.cancel_reason }}</small>{% endif %}
+                </td>
+                <td class="admin-history-action-cell">
+                  {% if item.status in ['generated', 'failed'] %}
+                    <details class="admin-cancel-disclosure">
+                      <summary>Batalkan</summary>
+                      <form method="post" action="{{ url_for('admin_history_cancel', record_id=item.id) }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="q" value="{{ filters.q }}">
+                        <input type="hidden" name="status" value="{{ filters.status }}">
+                        <input type="hidden" name="jenis" value="{{ filters.jenis }}">
+                        <input type="hidden" name="page" value="{{ history.page }}">
+                        <strong>Batalkan surat ini?</strong>
+                        <p>Status akan berubah menjadi dibatalkan. Nomor surat tetap tercatat dan tidak boleh digunakan kembali.</p>
+                        <label>Alasan pembatalan
+                          <textarea name="reason" required minlength="5" maxlength="300" rows="3" placeholder="Minimal 5 karakter"></textarea>
+                        </label>
+                        <label class="admin-cancel-confirm">
+                          <input type="checkbox" name="confirm" value="CANCEL" required>
+                          Saya memahami nomor tidak dapat dipakai kembali.
+                        </label>
+                        <button class="admin-btn admin-btn-danger" type="submit"><i class="fa-solid fa-ban"></i> Ya, batalkan</button>
+                      </form>
+                    </details>
+                  {% else %}
+                    <span class="admin-action-complete"><i class="fa-solid fa-lock"></i> Final</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <nav class="admin-pagination" aria-label="Paginasi riwayat">
+        {% if previous_url %}<a class="admin-btn admin-btn-secondary" href="{{ previous_url }}"><i class="fa-solid fa-arrow-left"></i> Sebelumnya</a>{% else %}<span></span>{% endif %}
+        <span>Halaman {{ history.page }} dari {{ history.pages }}</span>
+        {% if next_url %}<a class="admin-btn admin-btn-secondary" href="{{ next_url }}">Berikutnya <i class="fa-solid fa-arrow-right"></i></a>{% else %}<span></span>{% endif %}
+      </nav>
+    {% else %}
+      <div class="admin-empty-state">
+        <span><i class="fa-solid fa-magnifying-glass"></i></span>
+        <h3>Tidak ada riwayat yang cocok</h3>
+        <p>Ubah kata kunci atau reset filter untuk melihat seluruh riwayat.</p>
+        <a class="admin-btn admin-btn-secondary" href="{{ url_for('admin_history') }}">Reset filter</a>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

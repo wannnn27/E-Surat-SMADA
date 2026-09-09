@@ -36,6 +36,7 @@ SYSTEM_CONTEXT_VARIABLES = {
     "penandatangan_id_label",
     "penandatangan_jabatan",
     "penandatangan_nama",
+    "people",
     "peran_penandatangan",
     "tanggal_surat",
     "tanggal_surat_iso",
@@ -60,6 +61,8 @@ def validate_custom_template(
     label = _normalize_text(metadata.get("label", ""))
     description = _normalize_text(metadata.get("description", ""))
     category = _normalize_text(metadata.get("category", "")).casefold()
+    person_mode = _normalize_text(metadata.get("person_mode", "single")).casefold()
+    max_people_raw = _normalize_text(metadata.get("max_people", ""))
     default_code = _normalize_text(metadata.get("default_code", ""))
     signer = _normalize_text(metadata.get("signer", "kepsek")).casefold()
 
@@ -69,14 +72,33 @@ def validate_custom_template(
         field_errors["label"] = "nama template wajib dan maksimal 120 karakter"
     if _validate_safe_text(description, max_length=300):
         field_errors["description"] = "deskripsi wajib dan maksimal 300 karakter"
-    if category not in {"guru", "murid"}:
-        field_errors["category"] = "kategori harus guru atau murid"
+    if category not in {"guru", "murid", "umum"}:
+        field_errors["category"] = "kategori harus guru, murid, atau umum"
+    if person_mode not in {"none", "single", "multiple"}:
+        field_errors["person_mode"] = "mode personel tidak valid"
+    elif category == "umum" and person_mode != "none":
+        field_errors["person_mode"] = "kategori umum harus memakai mode tanpa personel"
+    elif category in {"guru", "murid"} and person_mode == "none":
+        field_errors["person_mode"] = "kategori guru atau murid harus memilih personel"
+    max_people: int | None = None
+    if max_people_raw:
+        try:
+            max_people = int(max_people_raw)
+        except ValueError:
+            field_errors["max_people"] = "batas personel harus berupa angka"
+        else:
+            if person_mode != "multiple":
+                field_errors["max_people"] = "batas hanya berlaku untuk mode banyak personel"
+            elif max_people < 2:
+                field_errors["max_people"] = "batas minimal untuk mode banyak personel adalah 2"
     if default_code not in archive_codes:
         field_errors["default_code"] = "kode klasifikasi tidak terdaftar"
     if signer not in {"kepsek", "pemohon", "wali"}:
         field_errors["signer"] = "penandatangan tidak valid"
     elif signer == "wali" and category != "murid":
         field_errors["signer"] = "orang tua/wali hanya berlaku untuk template murid"
+    elif signer == "pemohon" and person_mode == "none":
+        field_errors["signer"] = "penandatangan pemohon memerlukan pilihan personel"
     if not content:
         field_errors["template_file"] = "file DOCX wajib dipilih"
     elif len(content) > MAX_TEMPLATE_BYTES:
@@ -105,7 +127,11 @@ def validate_custom_template(
             "Template belum valid", {"template_file": "placeholder DOCX tidak dapat dibaca"}, 422
         ) from exc
 
-    required = {"nomor_surat", "tanggal_surat", "nama"}
+    required = {"nomor_surat", "tanggal_surat"}
+    if person_mode == "single":
+        required.add("nama")
+    elif person_mode == "multiple":
+        required.add("people")
     missing = sorted(required - variables)
     if missing:
         raise RequestValidationError(
@@ -146,6 +172,8 @@ def validate_custom_template(
         "template": f"{key}.docx",
         "default_kode": default_code,
         "signer": signer,
+        "person_mode": person_mode,
+        "max_people": max_people,
         "fields": fields,
         "template_blob": content,
         "is_custom": True,

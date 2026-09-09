@@ -218,8 +218,10 @@ Buka `http://127.0.0.1:5000` dan cek health lokal di `/healthz`. Endpoint health
 tidak menampilkan jumlah guru/siswa dan tetap harus dibatasi pada reverse proxy.
 Pengguna membuat surat langsung dari `/`; administrator memilih **Login Admin**
 untuk membuka dashboard `/admin`. Dashboard menampilkan metrik dan aktivitas
-surat, status sistem, akses riwayat, ringkasan data master, serta halaman khusus
-pengelolaan template di `/admin/templates`.
+surat, status sistem, ringkasan data master, halaman riwayat terfilter di
+`/admin/history`, serta halaman khusus pengelolaan template di
+`/admin/templates`. Keluar dari panel admin mengakhiri sesi dan mengembalikan
+pengguna ke layar login.
 
 Pemeriksaan kandidat rilis:
 
@@ -252,7 +254,7 @@ memeriksa daftar file, ukuran, SHA-256, file tambahan/hilang, dan SQLite
 PII: enkripsi, batasi akses, simpan di media terpisah, tetapkan retensi, dan uji
 restore. Jangan edit SQLite atau JSON hasil import secara manual.
 
-Untuk rebuild tujuh template aktif:
+Untuk rebuild seluruh 13 template aktif:
 
 ```powershell
 python scripts/build_docx_templates.py

@@ -71,7 +71,7 @@ def _sql(query: str, postgres: bool) -> str:
 
 
 def init_db(db_path: Path | str = DB_PATH) -> None:
-    """Migrasi database secara additive; record lama tidak diubah atau dihapus."""
+    """Migrasi database secara kompatibel tanpa menghilangkan record lama."""
 
     if _is_postgres(db_path):
         _init_postgres(str(db_path))
@@ -162,9 +162,12 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
                 key TEXT PRIMARY KEY,
                 label TEXT NOT NULL,
                 description TEXT NOT NULL,
-                category TEXT NOT NULL CHECK (category IN ('guru', 'murid')),
+                category TEXT NOT NULL CHECK (category IN ('guru', 'murid', 'umum')),
                 default_code TEXT NOT NULL,
                 signer TEXT NOT NULL CHECK (signer IN ('kepsek', 'pemohon', 'wali')),
+                person_mode TEXT NOT NULL DEFAULT 'single'
+                    CHECK (person_mode IN ('none', 'single', 'multiple')),
+                max_people INTEGER CHECK (max_people IS NULL OR max_people >= 2),
                 fields_json TEXT NOT NULL,
                 filename TEXT NOT NULL,
                 content BLOB NOT NULL,
@@ -176,6 +179,63 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
             )
             """
         )
+        custom_table_sql = str(
+            conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'custom_templates'"
+            ).fetchone()["sql"]
+        )
+        custom_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(custom_templates)")
+        }
+        if "'umum'" not in custom_table_sql or {
+            "person_mode",
+            "max_people",
+        } - custom_columns:
+            # SQLite tidak dapat memperluas CHECK constraint dengan ALTER TABLE.
+            # Salin seluruh record ke schema baru di dalam transaksi yang sama.
+            person_mode_expr = (
+                "person_mode" if "person_mode" in custom_columns else "'single'"
+            )
+            max_people_expr = "max_people" if "max_people" in custom_columns else "NULL"
+            conn.execute("DROP TABLE IF EXISTS custom_templates_migrated")
+            conn.execute(
+                """
+                CREATE TABLE custom_templates_migrated (
+                    key TEXT PRIMARY KEY,
+                    label TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    category TEXT NOT NULL CHECK (category IN ('guru', 'murid', 'umum')),
+                    default_code TEXT NOT NULL,
+                    signer TEXT NOT NULL CHECK (signer IN ('kepsek', 'pemohon', 'wali')),
+                    person_mode TEXT NOT NULL DEFAULT 'single'
+                        CHECK (person_mode IN ('none', 'single', 'multiple')),
+                    max_people INTEGER CHECK (max_people IS NULL OR max_people >= 2),
+                    fields_json TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    content BLOB NOT NULL,
+                    sha256 TEXT NOT NULL,
+                    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    created_by TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                f"""
+                INSERT INTO custom_templates_migrated (
+                    key, label, description, category, default_code, signer,
+                    person_mode, max_people, fields_json, filename, content,
+                    sha256, active, created_at, updated_at, created_by
+                )
+                SELECT key, label, description, category, default_code, signer,
+                    {person_mode_expr}, {max_people_expr}, fields_json, filename,
+                    content, sha256, active, created_at, updated_at, created_by
+                FROM custom_templates
+                """
+            )
+            conn.execute("DROP TABLE custom_templates")
+            conn.execute("ALTER TABLE custom_templates_migrated RENAME TO custom_templates")
         conn.execute(
             """
             CREATE UNIQUE INDEX IF NOT EXISTS uq_riwayat_request_id_new
@@ -193,7 +253,7 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS ix_riwayat_status_updated ON riwayat_surat(status, updated_at)"
         )
-        conn.execute("PRAGMA user_version = 4")
+        conn.execute("PRAGMA user_version = 5")
         conn.commit()
     except Exception:
         conn.rollback()
@@ -261,9 +321,12 @@ def _init_postgres(database_url: str) -> None:
                 key TEXT PRIMARY KEY CHECK (key ~ '^[a-z][a-z0-9_]{{2,49}}$'),
                 label TEXT NOT NULL,
                 description TEXT NOT NULL,
-                category TEXT NOT NULL CHECK (category IN ('guru', 'murid')),
+                category TEXT NOT NULL CHECK (category IN ('guru', 'murid', 'umum')),
                 default_code TEXT NOT NULL,
                 signer TEXT NOT NULL CHECK (signer IN ('kepsek', 'pemohon', 'wali')),
+                person_mode TEXT NOT NULL DEFAULT 'single'
+                    CHECK (person_mode IN ('none', 'single', 'multiple')),
+                max_people INTEGER CHECK (max_people IS NULL OR max_people >= 2),
                 fields_json JSONB NOT NULL,
                 filename TEXT NOT NULL,
                 content BYTEA NOT NULL,
@@ -274,6 +337,35 @@ def _init_postgres(database_url: str) -> None:
                 created_by TEXT NOT NULL
             )
             """
+        )
+        custom_table = _table("custom_templates", True)
+        conn.execute(
+            f"ALTER TABLE {custom_table} ADD COLUMN IF NOT EXISTS person_mode "
+            "TEXT NOT NULL DEFAULT 'single'"
+        )
+        conn.execute(
+            f"ALTER TABLE {custom_table} ADD COLUMN IF NOT EXISTS max_people INTEGER"
+        )
+        conn.execute(
+            f"ALTER TABLE {custom_table} DROP CONSTRAINT IF EXISTS custom_templates_category_check"
+        )
+        conn.execute(
+            f"ALTER TABLE {custom_table} ADD CONSTRAINT custom_templates_category_check "
+            "CHECK (category IN ('guru', 'murid', 'umum'))"
+        )
+        conn.execute(
+            f"ALTER TABLE {custom_table} DROP CONSTRAINT IF EXISTS custom_templates_person_mode_check"
+        )
+        conn.execute(
+            f"ALTER TABLE {custom_table} ADD CONSTRAINT custom_templates_person_mode_check "
+            "CHECK (person_mode IN ('none', 'single', 'multiple'))"
+        )
+        conn.execute(
+            f"ALTER TABLE {custom_table} DROP CONSTRAINT IF EXISTS custom_templates_max_people_check"
+        )
+        conn.execute(
+            f"ALTER TABLE {custom_table} ADD CONSTRAINT custom_templates_max_people_check "
+            "CHECK (max_people IS NULL OR max_people >= 2)"
         )
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_riwayat_request_id_new "
@@ -324,7 +416,8 @@ def verify_postgres_runtime(database_url: str) -> None:
             f"FROM {_table('riwayat_surat', True)} LIMIT 0"
         ).fetchall()
         conn.execute(
-            f"SELECT key, fields_json, content FROM {_table('custom_templates', True)} LIMIT 0"
+            f"SELECT key, person_mode, max_people, fields_json, content "
+            f"FROM {_table('custom_templates', True)} LIMIT 0"
         ).fetchall()
     finally:
         conn.close()
@@ -351,7 +444,8 @@ def load_custom_templates(database: Path | str) -> dict[str, dict[str, Any]]:
     conn = _connect_db(database)
     try:
         rows = conn.execute(
-            f"SELECT key, label, description, category, default_code, signer, fields_json, "
+            f"SELECT key, label, description, category, default_code, signer, "
+            f"person_mode, max_people, fields_json, "
             f"filename, content, sha256 FROM {table} WHERE active = " + ("TRUE" if postgres else "1")
         ).fetchall()
     finally:
@@ -370,12 +464,76 @@ def load_custom_templates(database: Path | str) -> dict[str, dict[str, Any]]:
             "template": str(row["filename"]),
             "default_kode": str(row["default_code"]),
             "signer": str(row["signer"]),
+            "person_mode": str(row["person_mode"] or "single"),
+            "max_people": row["max_people"],
             "fields": list(fields),
             "template_blob": bytes(row["content"]),
             "template_hash": str(row["sha256"]),
             "is_custom": True,
         }
     return templates
+
+
+def custom_templates_fingerprint(templates: Mapping[str, Mapping[str, Any]]) -> str:
+    """Fingerprint metadata katalog tanpa menyertakan blob DOCX."""
+
+    material = [
+        {
+            "key": key,
+            "label": str(info["label"]),
+            "description": str(info["deskripsi"]),
+            "category": str(info["kategori"]),
+            "default_code": str(info["default_kode"]),
+            "signer": str(info["signer"]),
+            "person_mode": str(info.get("person_mode", "single")),
+            "max_people": info.get("max_people"),
+            "fields": list(info["fields"]),
+            "filename": str(info["template"]),
+            "sha256": str(info["template_hash"]),
+        }
+        for key, info in sorted(templates.items())
+    ]
+    encoded = json.dumps(
+        material,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def load_custom_templates_fingerprint(database: Path | str) -> str:
+    """Baca fingerprint katalog dengan query ringan, tanpa mengambil content BYTEA/BLOB."""
+
+    postgres = _is_postgres(database)
+    table = _table("custom_templates", postgres)
+    conn = _connect_db(database)
+    try:
+        rows = conn.execute(
+            f"SELECT key, label, description, category, default_code, signer, "
+            f"person_mode, max_people, fields_json, filename, sha256 FROM {table} "
+            f"WHERE active = {'TRUE' if postgres else '1'} ORDER BY key"
+        ).fetchall()
+    finally:
+        conn.close()
+    templates: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        fields = row["fields_json"]
+        if isinstance(fields, str):
+            fields = json.loads(fields)
+        templates[str(row["key"])] = {
+            "label": str(row["label"]),
+            "deskripsi": str(row["description"]),
+            "kategori": str(row["category"]),
+            "default_kode": str(row["default_code"]),
+            "signer": str(row["signer"]),
+            "person_mode": str(row["person_mode"] or "single"),
+            "max_people": row["max_people"],
+            "fields": list(fields),
+            "template": str(row["filename"]),
+            "template_hash": str(row["sha256"]),
+        }
+    return custom_templates_fingerprint(templates)
 
 
 def save_custom_template(database: Path | str, template: Mapping[str, Any]) -> None:
@@ -390,21 +548,25 @@ def save_custom_template(database: Path | str, template: Mapping[str, Any]) -> N
     fields_json = json.dumps(template["fields"], ensure_ascii=False, separators=(",", ":"))
     values = (
         template["key"], template["label"], template["deskripsi"], template["kategori"],
-        template["default_kode"], template["signer"], fields_json, template["template"],
+        template["default_kode"], template["signer"], template.get("person_mode", "single"),
+        template.get("max_people"), fields_json, template["template"],
         content, digest, now_iso, now_iso, actor,
     )
     placeholder = "?::jsonb" if postgres else "?"
     query = f"""
         INSERT INTO {table} (
-            key, label, description, category, default_code, signer, fields_json,
+            key, label, description, category, default_code, signer, person_mode,
+            max_people, fields_json,
             filename, content, sha256, active, created_at, updated_at, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, {placeholder}, ?, ?, ?, {'TRUE' if postgres else '1'}, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, {placeholder}, ?, ?, ?, {'TRUE' if postgres else '1'}, ?, ?, ?)
         ON CONFLICT (key) DO UPDATE SET
             label = EXCLUDED.label,
             description = EXCLUDED.description,
             category = EXCLUDED.category,
             default_code = EXCLUDED.default_code,
             signer = EXCLUDED.signer,
+            person_mode = EXCLUDED.person_mode,
+            max_people = EXCLUDED.max_people,
             fields_json = EXCLUDED.fields_json,
             filename = EXCLUDED.filename,
             content = EXCLUDED.content,
@@ -459,7 +621,7 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
     normalized = validated["normalized"]
     info = validated["info"]
     person = validated["person"]
-    people = validated.get("people") or [person]
+    people = list(validated.get("people") or ([] if person is None else [person]))
     request_id = str(normalized["request_id"])
     payload_hash = _payload_hash(normalized)
     now_iso = _now().isoformat(timespec="seconds")
@@ -605,6 +767,12 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
             item.get("nip") or item.get("nis") or "" for item in people
         )
         person_name = ", ".join(item.get("nama", "") for item in people)
+        if not person_name:
+            person_name = str(
+                validated["context"].get("penerima")
+                or validated["context"].get("tujuan")
+                or info["label"]
+            )
         insert_sql = f"""
             INSERT INTO {history_table} (
                 created_at, updated_at, jenis_surat, jenis_key, template, hash,
@@ -625,7 +793,11 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
                 person_name,
                 person_id,
                 info["kategori"],
-                validated["context"].get("keperluan", "-"),
+                validated["context"].get("keperluan")
+                or validated["context"].get("acara")
+                or validated["context"].get("jenis_barang")
+                or validated["context"].get("perihal")
+                or "-",
                 request_id,
                 payload_hash,
                 actor,

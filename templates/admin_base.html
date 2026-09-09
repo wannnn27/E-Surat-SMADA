@@ -25,7 +25,7 @@
         <a class="admin-nav-item{% if active_page == 'dashboard' %} active{% endif %}" href="{{ url_for('admin_dashboard') }}"{% if active_page == 'dashboard' %} aria-current="page"{% endif %}>
           <i class="fa-solid fa-chart-pie"></i><span>Dashboard</span>
         </a>
-        <a class="admin-nav-item" href="{{ url_for('index', panel='riwayat') }}">
+        <a class="admin-nav-item{% if active_page == 'history' %} active{% endif %}" href="{{ url_for('admin_history') }}"{% if active_page == 'history' %} aria-current="page"{% endif %}>
           <i class="fa-solid fa-clock-rotate-left"></i><span>Riwayat Surat</span>
         </a>
         <a class="admin-nav-item{% if active_page == 'templates' %} active{% endif %}" href="{{ url_for('admin_templates') }}"{% if active_page == 'templates' %} aria-current="page"{% endif %}>
@@ -36,11 +36,11 @@
           <i class="fa-solid fa-database"></i><span>Data Master</span>
         </a>
 
-        <p class="admin-nav-label">Aplikasi</p>
+        <p class="admin-nav-label">Pindah workspace</p>
         <a class="admin-nav-item" href="{{ url_for('index') }}">
-          <i class="fa-solid fa-pen-to-square"></i><span>Buat Surat</span>
+          <i class="fa-solid fa-arrow-up-right-from-square"></i><span>Buka aplikasi surat</span>
         </a>
-        <a class="admin-nav-item" href="{{ url_for('index', panel='kode') }}">
+        <a class="admin-nav-item" href="{{ url_for('admin_master_data') }}#kode-arsip">
           <i class="fa-solid fa-bookmark"></i><span>Kode Arsip</span>
         </a>
       </nav>
@@ -55,8 +55,9 @@
         </div>
         <form method="post" action="{{ url_for('logout') }}">
           <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="next" value="login">
           <button class="admin-logout" type="submit">
-            <i class="fa-solid fa-right-from-bracket"></i> Keluar
+            <i class="fa-solid fa-right-from-bracket"></i> Keluar dari admin
           </button>
         </form>
       </div>

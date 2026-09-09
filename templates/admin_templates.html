@@ -6,7 +6,7 @@
 {% block description %}Kelola template tambahan dan periksa template bawaan yang tersedia.{% endblock %}
 {% block actions %}
   <a class="admin-btn admin-btn-secondary" href="{{ url_for('index', panel='templates') }}">
-    <i class="fa-solid fa-eye"></i> Lihat di aplikasi
+    <i class="fa-solid fa-arrow-up-right-from-square"></i> Pratinjau di aplikasi
   </a>
 {% endblock %}
 
@@ -26,12 +26,13 @@
         </div>
         <span class="admin-file-limit">Maks. 4 MB</span>
       </div>
-      <p class="admin-panel-copy">Gunakan placeholder minimal <code>{{ '{{ nomor_surat }}' }}</code>, <code>{{ '{{ tanggal_surat }}' }}</code>, dan <code>{{ '{{ nama }}' }}</code>. Placeholder tambahan otomatis menjadi field formulir.</p>
+      <p class="admin-panel-copy">Semua template wajib memakai <code>{{ '{{ nomor_surat }}' }}</code> dan <code>{{ '{{ tanggal_surat }}' }}</code>. Mode satu orang juga memerlukan <code>{{ '{{ nama }}' }}</code>; mode banyak orang memakai loop <code>{% raw %}{%tr for person in people %}{% endraw %}</code>. Placeholder tambahan otomatis menjadi field formulir user.</p>
 
       <form class="admin-template-form" method="post" action="{{ url_for('admin_template_upload') }}" enctype="multipart/form-data">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <label>Key template
           <input name="key" required maxlength="50" pattern="[a-z][a-z0-9_]{2,49}" placeholder="contoh: rekomendasi_siswa" value="{{ request.form.get('key', '') }}">
+          <small class="admin-field-help">ID internal unik: huruf kecil, angka, dan garis bawah.</small>
           {% if field_errors.key %}<small class="field-error">{{ field_errors.key }}</small>{% endif %}
         </label>
         <label>Nama template
@@ -46,8 +47,23 @@
           <select name="category" required>
             <option value="guru"{% if request.form.get('category', 'guru') == 'guru' %} selected{% endif %}>Guru / Staff</option>
             <option value="murid"{% if request.form.get('category') == 'murid' %} selected{% endif %}>Siswa / Murid</option>
+            <option value="umum"{% if request.form.get('category') == 'umum' %} selected{% endif %}>Umum / Eksternal</option>
           </select>
           {% if field_errors.category %}<small class="field-error">{{ field_errors.category }}</small>{% endif %}
+        </label>
+        <label>Mode personel
+          <select name="person_mode" required>
+            <option value="single"{% if request.form.get('person_mode', 'single') == 'single' %} selected{% endif %}>Satu personel</option>
+            <option value="multiple"{% if request.form.get('person_mode') == 'multiple' %} selected{% endif %}>Banyak personel</option>
+            <option value="none"{% if request.form.get('person_mode') == 'none' %} selected{% endif %}>Tanpa personel</option>
+          </select>
+          <small class="admin-field-help">Kategori umum memakai tanpa personel; guru/siswa memakai satu atau banyak personel.</small>
+          {% if field_errors.person_mode %}<small class="field-error">{{ field_errors.person_mode }}</small>{% endif %}
+        </label>
+        <label>Batas personel (opsional)
+          <input name="max_people" type="number" min="2" step="1" placeholder="Kosong = tanpa batas" value="{{ request.form.get('max_people', '') }}">
+          <small class="admin-field-help">Hanya untuk mode banyak personel. Biarkan kosong jika jumlahnya tidak dibatasi.</small>
+          {% if field_errors.max_people %}<small class="field-error">{{ field_errors.max_people }}</small>{% endif %}
         </label>
         <label>Penandatangan
           <select name="signer" required>
@@ -68,6 +84,10 @@
         <label>File template (.docx)
           <input name="template_file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
           {% if field_errors.template_file %}<small class="field-error">{{ field_errors.template_file }}</small>{% endif %}
+        </label>
+        <label class="admin-field-full admin-replace-confirm">
+          <input type="checkbox" name="confirm_replace" value="REPLACE"{% if request.form.get('confirm_replace') == 'REPLACE' %} checked{% endif %}>
+          <span><strong>Izinkan pembaruan template yang sudah ada</strong><small>Hanya diperlukan jika key di atas sudah digunakan. File dan konfigurasi lama akan diganti.</small></span>
         </label>
         <div class="admin-field-full admin-form-footer">
           <p><i class="fa-solid fa-shield-halved"></i> File divalidasi sebelum disimpan ke database privat.</p>
@@ -91,7 +111,7 @@
               <span class="admin-template-icon"><i class="fa-solid fa-file-word"></i></span>
               <div class="admin-template-info">
                 <strong>{{ item.label }}</strong>
-                <small>{{ item.key }} · {{ item.kategori | upper }} · {{ item.default_kode }}</small>
+                <small>{{ item.key }} · {{ item.kategori | upper }} · {{ 'BANYAK PERSONEL' if item.person_mode == 'multiple' else ('TANPA PERSONEL' if item.person_mode == 'none' else 'SATU PERSONEL') }} · {{ item.default_kode }}</small>
                 <p>{{ item.deskripsi }}</p>
               </div>
               <form method="post" action="{{ url_for('admin_template_delete', key=item.key) }}">

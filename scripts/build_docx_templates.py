@@ -1,5 +1,5 @@
 """
-Bangun ulang tujuh template DOCX aktif E-Surat SMADA.
+Bangun ulang seluruh template DOCX aktif E-Surat SMADA.
 
 Builder ini sengaja memakai master immutable yang tidak pernah menjadi target
 output. Tiga elemen awal body master dipertahankan sebagai blok kop; seluruh
@@ -54,7 +54,11 @@ class TemplateSpec:
     opening: str
     rows: tuple[tuple[str, str], ...]
     closing: str
-    multi_students: bool = False
+    layout: str = "standard"
+    multi_people: bool = False
+    field_names: tuple[str, ...] = ()
+    extra_variables: tuple[str, ...] = ()
+    expected_table_rows: tuple[int, ...] = ()
 
 
 TEMPLATE_SPECS: tuple[TemplateSpec, ...] = (
@@ -111,17 +115,13 @@ TEMPLATE_SPECS: tuple[TemplateSpec, ...] = (
     TemplateSpec(
         filename="3. Surat Tugas-smada.docx",
         title="SURAT TUGAS",
-        opening="Kepala SMA Negeri 2 Wonosari dengan ini menugaskan kepada:",
-        rows=(
-            ("Nama", "{{ nama }}"),
-            ("NIP", "{{ nip }}"),
-            ("Pangkat / Golongan", "{{ golongan }}"),
-            ("Jabatan", "{{ jabatan }}"),
-            ("Tanggal Tugas", "{{ tanggal_mulai }}"),
-            ("Sampai Tanggal", "{{ tanggal_selesai }}"),
-            ("Uraian / Keperluan Tugas", "{{ keperluan }}"),
-        ),
+        opening="",
+        rows=(),
         closing="Demikian surat tugas ini diberikan untuk dilaksanakan dengan penuh rasa tanggung jawab.",
+        layout="surat_tugas",
+        multi_people=True,
+        field_names=("dasar", "tanggal_mulai", "tanggal_selesai", "waktu", "tempat_kegiatan", "keperluan"),
+        expected_table_rows=(1, 4, 5),
     ),
     TemplateSpec(
         filename="11. Surat Keterangan-smada.docx",
@@ -165,7 +165,82 @@ TEMPLATE_SPECS: tuple[TemplateSpec, ...] = (
             ("Uraian / Keperluan", "{{ keperluan }}"),
         ),
         closing="Demikian surat dispensasi ini dibuat untuk dipergunakan sebagaimana mestinya.",
-        multi_students=True,
+        multi_people=True,
+    ),
+    TemplateSpec(
+        filename="surat_pengantar_umum.docx",
+        title="SURAT PENGANTAR",
+        opening="",
+        rows=(),
+        closing="",
+        layout="pengantar_umum",
+        field_names=("tujuan", "alamat_tujuan", "jenis_barang", "jumlah_barang", "keterangan_pengantar"),
+        expected_table_rows=(2,),
+    ),
+    TemplateSpec(
+        filename="surat_pengantar_cuti_guru.docx",
+        title="SURAT PENGANTAR",
+        opening="",
+        rows=(),
+        closing="",
+        layout="pengantar_cuti",
+        field_names=("tujuan", "alamat_tujuan", "jenis_cuti", "jumlah_barang", "keterangan_pengantar"),
+        extra_variables=("nama", "nip", "jabatan", "golongan"),
+        expected_table_rows=(2,),
+    ),
+    TemplateSpec(
+        filename="permohonan_penceramah.docx",
+        title="PERMOHONAN PENCERAMAH",
+        opening="",
+        rows=(),
+        closing="Demikian surat permohonan ini kami sampaikan. Atas perhatian dan kesediaannya, kami ucapkan terima kasih.",
+        layout="permohonan_penceramah",
+        field_names=(
+            "sifat", "lampiran", "perihal", "penerima", "alamat_penerima", "latar_kegiatan",
+            "hari", "tanggal_kegiatan", "waktu", "tempat_kegiatan",
+        ),
+        expected_table_rows=(4, 4),
+    ),
+    TemplateSpec(
+        filename="surat_keterangan_kehilangan_murid.docx",
+        title="SURAT KETERANGAN KEHILANGAN",
+        opening="Yang bertanda tangan di bawah ini:",
+        rows=(),
+        closing="Demikian surat keterangan ini dibuat untuk dipergunakan sebagaimana mestinya.",
+        layout="keterangan_kehilangan",
+        field_names=(
+            "barang_hilang", "tempat_tanggal_lahir", "jenis_kelamin_lengkap", "nomor_rekening",
+            "nama_ibu_kandung", "keperluan",
+        ),
+        extra_variables=("nama", "nis", "nisn", "kelas"),
+        expected_table_rows=(3, 8),
+    ),
+    TemplateSpec(
+        filename="surat_rekomendasi_murid.docx",
+        title="SURAT REKOMENDASI",
+        opening="Yang bertanda tangan di bawah ini:",
+        rows=(),
+        closing="Demikian surat rekomendasi ini dibuat untuk dipergunakan sebagaimana mestinya.",
+        layout="rekomendasi_murid",
+        multi_people=True,
+        field_names=(
+            "nama_kegiatan", "guru_pendamping", "nip_guru_pendamping", "email_guru_pendamping",
+            "telepon_guru_pendamping", "kontak_peserta", "keperluan",
+        ),
+        expected_table_rows=(3, 4, 4),
+    ),
+    TemplateSpec(
+        filename="undangan_umum.docx",
+        title="SURAT UNDANGAN",
+        opening="Kami mengharap kehadiran Bapak/Ibu dalam kegiatan yang akan diselenggarakan pada:",
+        rows=(),
+        closing="Atas perhatian dan kehadiran Bapak/Ibu, kami sampaikan terima kasih.",
+        layout="undangan",
+        field_names=(
+            "sifat", "lampiran", "perihal", "penerima", "alamat_penerima", "hari",
+            "tanggal_kegiatan", "waktu", "tempat_kegiatan", "acara",
+        ),
+        expected_table_rows=(4, 5),
     ),
 )
 
@@ -362,25 +437,282 @@ def add_key_value_table(doc: docx.Document, rows: Sequence[tuple[str, str]]) -> 
             set_run_font(run, bold=(index == 2 and label in emphasized_labels))
 
 
-def add_students_table(doc: docx.Document) -> None:
-    widths = (700, 3300, 3100, 1271)
-    table = doc.add_table(rows=4, cols=4)
+def _repeat_table_header(row) -> None:
+    tr_pr = row._tr.get_or_add_trPr()
+    marker = _get_or_add(tr_pr, "w:tblHeader")
+    marker.set(qn("w:val"), "true")
+
+
+def _set_cell_lines(cell, lines: Sequence[str], *, bold: bool = False, centered: bool = False) -> None:
+    for index, text in enumerate(lines):
+        paragraph = cell.paragraphs[0] if index == 0 else cell.add_paragraph()
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER if centered else WD_ALIGN_PARAGRAPH.LEFT
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.paragraph_format.line_spacing = 1.05
+        set_run_font(paragraph.add_run(text), bold=bold)
+
+
+def add_people_table(doc: docx.Document, *, category: str, compact_identity: bool = False) -> None:
+    if category == "guru" and compact_identity:
+        widths = (650, 5000, 3421)
+        headers = (("No.",), ("Nama",), ("Jabatan",))
+        body = (
+            ("{{ loop.index }}",),
+            ("{{ person.nama }}", "NIP. {{ person.nip }}"),
+            ("{{ person.jabatan }}",),
+        )
+    else:
+        widths = (650, 3700, 2721, 2000)
+        headers = (("No.",), ("Nama Siswa",), ("NIS / NISN",), ("Kelas",))
+        body = (
+            ("{{ loop.index }}",),
+            ("{{ person.nama }}",),
+            ("{{ person.nis }} / {{ person.nisn }}",),
+            ("{{ person.kelas }}",),
+        )
+
+    table = doc.add_table(rows=4, cols=len(widths))
     configure_table_geometry(table, widths, bordered=True)
-    row_values = (
-        ("No.", "Nama Siswa", "NIS / NISN", "Kelas"),
-        ("{%tr for student in students %}", "", "", ""),
-        ("{{ loop.index }}", "{{ student.nama }}", "{{ student.nis }} / {{ student.nisn }}", "{{ student.kelas }}"),
-        ("{%tr endfor %}", "", "", ""),
-    )
-    for row_index, (row, values) in enumerate(zip(table.rows, row_values)):
-        for cell, width, value in zip(row.cells, widths, values):
+    _repeat_table_header(table.rows[0])
+    for cell, width, lines in zip(table.rows[0].cells, widths, headers):
+        configure_cell(cell, width, borderless=False)
+        _set_cell_lines(cell, lines, bold=True, centered=True)
+
+    for control_row, tag in ((table.rows[1], "{%tr for person in people %}"), (table.rows[3], "{%tr endfor %}")):
+        for cell, width in zip(control_row.cells, widths):
             configure_cell(cell, width, borderless=False)
-            paragraph = cell.paragraphs[0]
-            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER if row_index != 2 else WD_ALIGN_PARAGRAPH.LEFT
-            paragraph.paragraph_format.space_before = Pt(0)
-            paragraph.paragraph_format.space_after = Pt(0)
-            run = paragraph.add_run(value)
-            set_run_font(run, bold=(row_index == 0))
+        _set_cell_lines(control_row.cells[0], (tag,))
+
+    for index, (cell, width, lines) in enumerate(zip(table.rows[2].cells, widths, body)):
+        configure_cell(cell, width, borderless=False)
+        _set_cell_lines(cell, lines, centered=(index == 0))
+
+
+def add_bordered_table(
+    doc: docx.Document,
+    headers: Sequence[str],
+    rows: Sequence[Sequence[str]],
+    widths: Sequence[int],
+) -> None:
+    table = doc.add_table(rows=1 + len(rows), cols=len(headers))
+    configure_table_geometry(table, widths, bordered=True)
+    _repeat_table_header(table.rows[0])
+    for cell, width, value in zip(table.rows[0].cells, widths, headers):
+        configure_cell(cell, width, borderless=False)
+        _set_cell_lines(cell, (value,), bold=True, centered=True)
+    for row, values in zip(table.rows[1:], rows):
+        for index, (cell, width, value) in enumerate(zip(row.cells, widths, values)):
+            configure_cell(cell, width, borderless=False)
+            _set_cell_lines(cell, (value,), centered=(index == 0))
+
+
+def add_letter_title(doc: docx.Document, title: str) -> None:
+    add_text_paragraph(
+        doc,
+        title,
+        alignment=WD_ALIGN_PARAGRAPH.CENTER,
+        size_pt=TITLE_FONT_SIZE_PT,
+        bold=True,
+        underline=True,
+        space_before_pt=10,
+        keep_with_next=True,
+    )
+    add_text_paragraph(
+        doc,
+        "Nomor: {{ nomor_surat }}",
+        alignment=WD_ALIGN_PARAGRAPH.CENTER,
+        space_after_pt=8,
+        keep_with_next=True,
+    )
+
+
+def add_recipient(doc: docx.Document, name: str, address: str) -> None:
+    add_text_paragraph(doc, "Yth. " + name, space_before_pt=6, keep_with_next=True)
+    add_text_paragraph(doc, address, space_after_pt=8, keep_with_next=True)
+
+
+def add_correspondence_metadata(doc: docx.Document) -> None:
+    add_text_paragraph(
+        doc,
+        "Wonosari, {{ tanggal_surat }}",
+        alignment=WD_ALIGN_PARAGRAPH.RIGHT,
+        keep_with_next=True,
+    )
+    add_key_value_table(
+        doc,
+        (
+            ("Nomor", "{{ nomor_surat }}"),
+            ("Sifat", "{{ sifat }}"),
+            ("Lampiran", "{{ lampiran }}"),
+            ("Perihal", "{{ perihal }}"),
+        ),
+    )
+
+
+def build_special_layout(doc: docx.Document, spec: TemplateSpec) -> None:
+    if spec.layout == "surat_tugas":
+        add_letter_title(doc, "SURAT PERINTAH / SURAT TUGAS")
+        add_key_value_table(doc, (("Dasar", "{{ dasar }}"),))
+        add_text_paragraph(
+            doc,
+            "MEMERINTAHKAN:",
+            alignment=WD_ALIGN_PARAGRAPH.CENTER,
+            bold=True,
+            space_before_pt=8,
+            space_after_pt=4,
+            keep_with_next=True,
+        )
+        add_text_paragraph(doc, "Kepada:", bold=True, keep_with_next=True)
+        add_people_table(doc, category="guru", compact_identity=True)
+        add_text_paragraph(doc, "Untuk:", bold=True, space_before_pt=6, keep_with_next=True)
+        add_key_value_table(
+            doc,
+            (
+                ("Uraian Perintah", "{{ keperluan }}"),
+                ("Tanggal Mulai", "{{ tanggal_mulai }}"),
+                ("Tanggal Selesai", "{{ tanggal_selesai }}"),
+                ("Waktu", "{{ waktu }}"),
+                ("Tempat", "{{ tempat_kegiatan }}"),
+            ),
+        )
+        add_text_paragraph(doc, spec.closing, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before_pt=8)
+        add_signature(doc)
+        return
+
+    if spec.layout in {"pengantar_umum", "pengantar_cuti"}:
+        add_text_paragraph(doc, "Wonosari, {{ tanggal_surat }}", alignment=WD_ALIGN_PARAGRAPH.RIGHT)
+        add_recipient(doc, "{{ tujuan }}", "{{ alamat_tujuan }}")
+        add_letter_title(doc, spec.title)
+        item = "{{ jenis_barang }}"
+        if spec.layout == "pengantar_cuti":
+            item = (
+                "Usulan {{ jenis_cuti }} atas nama {{ nama }}\n"
+                "NIP. {{ nip }}\nJabatan: {{ jabatan }}\nGolongan: {{ golongan }}"
+            )
+        add_bordered_table(
+            doc,
+            ("No.", "Jenis Dokumen / Barang", "Jumlah", "Keterangan"),
+            (("1", item, "{{ jumlah_barang }}", "{{ keterangan_pengantar }}"),),
+            (650, 4171, 1250, 3000),
+        )
+        add_text_paragraph(doc, "Diterima tanggal: ................................", space_before_pt=8)
+        add_signature(doc)
+        return
+
+    if spec.layout == "permohonan_penceramah":
+        add_correspondence_metadata(doc)
+        add_recipient(doc, "{{ penerima }}", "{{ alamat_penerima }}")
+        add_text_paragraph(doc, "Dengan hormat,", keep_with_next=True)
+        add_text_paragraph(doc, "{{ latar_kegiatan }}", alignment=WD_ALIGN_PARAGRAPH.JUSTIFY)
+        add_text_paragraph(
+            doc,
+            "Sehubungan dengan itu, kami mengharapkan kesediaan Bapak/Ibu untuk menjadi penceramah pada kegiatan yang akan dilaksanakan pada:",
+            alignment=WD_ALIGN_PARAGRAPH.JUSTIFY,
+            keep_with_next=True,
+        )
+        add_key_value_table(
+            doc,
+            (
+                ("Hari", "{{ hari }}"),
+                ("Tanggal", "{{ tanggal_kegiatan }}"),
+                ("Waktu", "{{ waktu }}"),
+                ("Tempat", "{{ tempat_kegiatan }}"),
+            ),
+        )
+        add_text_paragraph(doc, spec.closing, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before_pt=6)
+        add_signature(doc)
+        return
+
+    if spec.layout == "keterangan_kehilangan":
+        add_letter_title(doc, spec.title)
+        add_text_paragraph(doc, spec.opening, keep_with_next=True)
+        add_key_value_table(
+            doc,
+            (
+                ("Nama", "{{ penandatangan_nama }}"),
+                ("Jabatan", "{{ penandatangan_jabatan }}"),
+                ("Nama Sekolah", "SMA Negeri 2 Wonosari"),
+            ),
+        )
+        add_text_paragraph(
+            doc,
+            "Dengan ini menerangkan bahwa siswa di bawah ini benar terdaftar di SMA Negeri 2 Wonosari dan melaporkan kehilangan {{ barang_hilang }}:",
+            alignment=WD_ALIGN_PARAGRAPH.JUSTIFY,
+            space_before_pt=6,
+            keep_with_next=True,
+        )
+        add_key_value_table(
+            doc,
+            (
+                ("Nama", "{{ nama }}"),
+                ("NIS / NISN", "{{ nis }} / {{ nisn }}"),
+                ("Kelas", "{{ kelas }}"),
+                ("Tempat, Tanggal Lahir", "{{ tempat_tanggal_lahir }}"),
+                ("Jenis Kelamin", "{{ jenis_kelamin_lengkap }}"),
+                ("Nomor Rekening", "{{ nomor_rekening }}"),
+                ("Nama Ibu Kandung", "{{ nama_ibu_kandung }}"),
+                ("Keperluan", "{{ keperluan }}"),
+            ),
+        )
+        add_text_paragraph(doc, spec.closing, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before_pt=6)
+        add_signature(doc)
+        return
+
+    if spec.layout == "rekomendasi_murid":
+        add_letter_title(doc, spec.title)
+        add_text_paragraph(doc, spec.opening, keep_with_next=True)
+        add_key_value_table(
+            doc,
+            (
+                ("Nama", "{{ penandatangan_nama }}"),
+                ("NIP", "{{ penandatangan_id }}"),
+                ("Jabatan", "{{ penandatangan_jabatan }}"),
+            ),
+        )
+        add_text_paragraph(
+            doc,
+            "Merekomendasikan siswa tersebut di bawah ini untuk mengikuti {{ nama_kegiatan }}:",
+            alignment=WD_ALIGN_PARAGRAPH.JUSTIFY,
+            space_before_pt=6,
+            keep_with_next=True,
+        )
+        add_people_table(doc, category="murid")
+        add_text_paragraph(doc, "Kontak peserta (bila dipersyaratkan): {{ kontak_peserta }}", space_before_pt=6)
+        add_text_paragraph(doc, "Guru pendamping yang ditugaskan adalah:", keep_with_next=True)
+        add_key_value_table(
+            doc,
+            (
+                ("Nama Guru", "{{ guru_pendamping }}"),
+                ("NIP", "{{ nip_guru_pendamping }}"),
+                ("Email", "{{ email_guru_pendamping }}"),
+                ("Nomor HP", "{{ telepon_guru_pendamping }}"),
+            ),
+        )
+        add_text_paragraph(doc, "{{ keperluan }}", alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before_pt=6)
+        add_text_paragraph(doc, spec.closing, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY)
+        add_signature(doc)
+        return
+
+    if spec.layout == "undangan":
+        add_correspondence_metadata(doc)
+        add_recipient(doc, "{{ penerima }}", "{{ alamat_penerima }}")
+        add_text_paragraph(doc, spec.opening, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, keep_with_next=True)
+        add_key_value_table(
+            doc,
+            (
+                ("Hari", "{{ hari }}"),
+                ("Tanggal", "{{ tanggal_kegiatan }}"),
+                ("Waktu", "{{ waktu }}"),
+                ("Tempat", "{{ tempat_kegiatan }}"),
+                ("Acara", "{{ acara }}"),
+            ),
+        )
+        add_text_paragraph(doc, spec.closing, alignment=WD_ALIGN_PARAGRAPH.JUSTIFY, space_before_pt=6)
+        add_signature(doc)
+        return
+
+    raise RuntimeError(f"Layout template tidak dikenal: {spec.layout}")
 
 
 def add_signature(doc: docx.Document) -> None:
@@ -441,42 +773,29 @@ def build_template(spec: TemplateSpec) -> Path:
     configure_default_font(doc)
     configure_page(doc)
 
-    add_text_paragraph(
-        doc,
-        spec.title,
-        alignment=WD_ALIGN_PARAGRAPH.CENTER,
-        size_pt=TITLE_FONT_SIZE_PT,
-        bold=True,
-        underline=True,
-        space_before_pt=10,
-        keep_with_next=True,
-    )
-    add_text_paragraph(
-        doc,
-        "Nomor: {{ nomor_surat }}",
-        alignment=WD_ALIGN_PARAGRAPH.CENTER,
-        space_after_pt=8,
-        keep_with_next=True,
-    )
-    add_text_paragraph(
-        doc,
-        spec.opening,
-        alignment=WD_ALIGN_PARAGRAPH.JUSTIFY,
-        space_after_pt=6,
-        keep_with_next=True,
-    )
-    if spec.multi_students:
-        add_students_table(doc)
-        add_text_paragraph(doc, "Rincian kegiatan:", space_before_pt=6, keep_with_next=True)
-    add_key_value_table(doc, spec.rows)
-    add_text_paragraph(
-        doc,
-        spec.closing,
-        alignment=WD_ALIGN_PARAGRAPH.JUSTIFY,
-        space_before_pt=8,
-        space_after_pt=4,
-    )
-    add_signature(doc)
+    if spec.layout != "standard":
+        build_special_layout(doc, spec)
+    else:
+        add_letter_title(doc, spec.title)
+        add_text_paragraph(
+            doc,
+            spec.opening,
+            alignment=WD_ALIGN_PARAGRAPH.JUSTIFY,
+            space_after_pt=6,
+            keep_with_next=True,
+        )
+        if spec.multi_people:
+            add_people_table(doc, category="murid")
+            add_text_paragraph(doc, "Rincian kegiatan:", space_before_pt=6, keep_with_next=True)
+        add_key_value_table(doc, spec.rows)
+        add_text_paragraph(
+            doc,
+            spec.closing,
+            alignment=WD_ALIGN_PARAGRAPH.JUSTIFY,
+            space_before_pt=8,
+            space_after_pt=4,
+        )
+        add_signature(doc)
 
     doc.core_properties.author = "SMAN 2 Wonosari"
     doc.core_properties.last_modified_by = "E-Surat SMADA"
@@ -495,8 +814,10 @@ def expected_variables(spec: TemplateSpec) -> set[str]:
     source_values = [spec.title, spec.opening, spec.closing, "{{ nomor_surat }}"]
     source_values.extend(value for _, value in spec.rows)
     variables = _variables_in(source_values)
-    if spec.multi_students:
-        variables.add("students")
+    variables.update(spec.field_names)
+    variables.update(spec.extra_variables)
+    if spec.multi_people:
+        variables.add("people")
     variables.update(
         {
             "tanggal_surat",
@@ -511,15 +832,13 @@ def expected_variables(spec: TemplateSpec) -> set[str]:
 
 def audit_template(path: Path, spec: TemplateSpec) -> None:
     doc = docx.Document(path)
-    expected_table_count = 2 if spec.multi_students else 1
-    if len(doc.tables) != expected_table_count:
+    expected_rows = spec.expected_table_rows or (
+        (4, len(spec.rows)) if spec.multi_people else (len(spec.rows),)
+    )
+    actual_rows = tuple(len(table.rows) for table in doc.tables)
+    if actual_rows != expected_rows:
         raise RuntimeError(
-            f"{path.name}: diharapkan {expected_table_count} tabel data, ditemukan {len(doc.tables)}."
-        )
-    detail_table = doc.tables[-1]
-    if len(detail_table.rows) != len(spec.rows):
-        raise RuntimeError(
-            f"{path.name}: baris tabel {len(detail_table.rows)}, seharusnya {len(spec.rows)}."
+            f"{path.name}: baris tabel {actual_rows}, seharusnya {expected_rows}."
         )
 
     with zipfile.ZipFile(path) as package:
@@ -535,25 +854,25 @@ def audit_template(path: Path, spec: TemplateSpec) -> None:
     if drawing_count != 1:
         raise RuntimeError(f"{path.name}: kop harus memiliki satu drawing; ditemukan {drawing_count}.")
 
-    detail_xml = detail_table._tbl.xml
-    tbl_width = re.search(r'<w:tblW\b[^>]*\bw:w="(\d+)"', detail_xml)
-    grid_widths = tuple(
-        int(value)
-        for value in re.findall(r'<w:gridCol w:w="(\d+)"', detail_xml)[:3]
-    )
-    first_row = re.search(r"<w:tr(?:\s[^>]*)?>.*?</w:tr>", detail_xml, re.DOTALL)
-    cell_widths = ()
-    if first_row:
-        cell_widths = tuple(
-            int(value)
-            for value in re.findall(r'<w:tcW\b[^>]*\bw:w="(\d+)"', first_row.group(0))[:3]
+    for table_index, table in enumerate(doc.tables, start=1):
+        table_xml = table._tbl.xml
+        tbl_width = re.search(r'<w:tblW\b[^>]*\bw:w="(\d+)"', table_xml)
+        grid_widths = tuple(
+            int(value) for value in re.findall(r'<w:gridCol w:w="(\d+)"', table_xml)
         )
-    if not tbl_width or int(tbl_width.group(1)) != TABLE_WIDTH_DXA:
-        raise RuntimeError(f"{path.name}: tblW tidak konsisten.")
-    if grid_widths != TABLE_COLUMN_WIDTHS_DXA or cell_widths != TABLE_COLUMN_WIDTHS_DXA:
-        raise RuntimeError(
-            f"{path.name}: geometri tabel grid={grid_widths}, cell={cell_widths}."
-        )
+        first_row = re.search(r"<w:tr(?:\s[^>]*)?>.*?</w:tr>", table_xml, re.DOTALL)
+        cell_widths = ()
+        if first_row:
+            cell_widths = tuple(
+                int(value)
+                for value in re.findall(r'<w:tcW\b[^>]*\bw:w="(\d+)"', first_row.group(0))
+            )
+        if not tbl_width or int(tbl_width.group(1)) != sum(grid_widths):
+            raise RuntimeError(f"{path.name}: tblW tabel {table_index} tidak konsisten.")
+        if not grid_widths or cell_widths != grid_widths:
+            raise RuntimeError(
+                f"{path.name}: geometri tabel {table_index} grid={grid_widths}, cell={cell_widths}."
+            )
     if "<w:trHeight" in document_xml:
         raise RuntimeError(f"{path.name}: ditemukan fixed row height.")
 
@@ -580,7 +899,7 @@ def main() -> None:
     for spec in TEMPLATE_SPECS:
         target = build_template(spec)
         audit_template(target, spec)
-        print(f"[OK] {target.name}: {len(spec.rows)} baris, struktur dan placeholder valid.")
+        print(f"[OK] {target.name}: struktur, geometri, dan placeholder valid.")
 
     if package_content_hash(MASTER_DOC) != master_hash:
         raise RuntimeError("Master immutable berubah selama build.")

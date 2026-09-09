@@ -14,5 +14,37 @@
     "golongan": "IV/a",
     "ttl": "Wonosari, 2 Februari 1975",
     "status_pegawai": "PNS"
+  },
+  {
+    "nip": "190000000000000003",
+    "nama": "STAF PENGUJIAN DUA",
+    "jabatan": "Pengadministrasi Perkantoran",
+    "golongan": "III/b",
+    "ttl": "Wonosari, 3 Maret 1982",
+    "status_pegawai": "PNS"
+  },
+  {
+    "nip": "190000000000000004",
+    "nama": "STAF PENGUJIAN TIGA",
+    "jabatan": "Pengelola Layanan Operasional",
+    "golongan": "III/a",
+    "ttl": "Wonosari, 4 April 1984",
+    "status_pegawai": "PNS"
+  },
+  {
+    "nip": "190000000000000005",
+    "nama": "STAF PENGUJIAN EMPAT",
+    "jabatan": "Pengelola Data dan Informasi",
+    "golongan": "II/d",
+    "ttl": "Wonosari, 5 Mei 1986",
+    "status_pegawai": "PPPK"
+  },
+  {
+    "nip": "190000000000000006",
+    "nama": "STAF PENGUJIAN LIMA",
+    "jabatan": "Penelaah Teknis Kebijakan",
+    "golongan": "III/d",
+    "ttl": "Wonosari, 6 Juni 1988",
+    "status_pegawai": "PNS"
   }
 ]

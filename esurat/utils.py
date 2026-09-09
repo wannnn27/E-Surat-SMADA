@@ -40,7 +40,7 @@ def _validate_safe_text(value: str, *, max_length: int, allow_empty: bool = Fals
         return None if allow_empty else "wajib diisi"
     if len(value) > max_length:
         return f"maksimal {max_length} karakter"
-    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+    if any((ord(char) < 32 and char not in "\r\n\t") or ord(char) == 127 for char in value):
         return "mengandung karakter kontrol yang tidak diizinkan"
     if "<" in value or ">" in value:
         return "tidak boleh mengandung tag HTML/XML"

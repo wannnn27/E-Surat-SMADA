@@ -6,7 +6,7 @@
 {% block description %}Periksa cakupan data guru, siswa, kepala sekolah, dan kode klasifikasi arsip.{% endblock %}
 {% block actions %}
   <a class="admin-btn admin-btn-secondary" href="{{ url_for('index') }}">
-    <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka direktori
+    <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka aplikasi surat
   </a>
 {% endblock %}
 
@@ -39,10 +39,10 @@
   </section>
 
   <div class="admin-master-detail-grid">
-    <section class="admin-panel">
+    <section class="admin-panel" id="guru-staf">
       <div class="admin-panel-heading">
         <div><span class="admin-section-kicker">Pratinjau</span><h2>Guru &amp; staf</h2></div>
-        <a class="admin-text-link" href="{{ url_for('index', panel='guru') }}">Lihat direktori <i class="fa-solid fa-arrow-right"></i></a>
+        <a class="admin-text-link" href="{{ url_for('index', panel='guru') }}">Buka direktori lengkap <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
       </div>
       <div class="admin-table-wrap">
         <table class="admin-table admin-master-table">
@@ -60,10 +60,10 @@
       </div>
     </section>
 
-    <section class="admin-panel">
+    <section class="admin-panel" id="siswa">
       <div class="admin-panel-heading">
         <div><span class="admin-section-kicker">Pratinjau</span><h2>Siswa</h2></div>
-        <a class="admin-text-link" href="{{ url_for('index', panel='murid') }}">Lihat direktori <i class="fa-solid fa-arrow-right"></i></a>
+        <a class="admin-text-link" href="{{ url_for('index', panel='murid') }}">Buka direktori lengkap <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
       </div>
       <div class="admin-table-wrap">
         <table class="admin-table admin-master-table">
@@ -82,10 +82,10 @@
     </section>
   </div>
 
-  <section class="admin-panel">
+  <section class="admin-panel" id="kode-arsip">
     <div class="admin-panel-heading">
       <div><span class="admin-section-kicker">Klasifikasi</span><h2>Kode arsip utama</h2></div>
-      <a class="admin-text-link" href="{{ url_for('index', panel='kode') }}">Cari seluruh kode <i class="fa-solid fa-arrow-right"></i></a>
+      <a class="admin-text-link" href="{{ url_for('index', panel='kode') }}">Cari di aplikasi <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
     </div>
     <div class="admin-archive-grid">
       {% for item in archive_preview %}

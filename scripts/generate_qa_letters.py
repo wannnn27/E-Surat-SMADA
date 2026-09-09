@@ -38,10 +38,16 @@ EXPECTED_TABLE_ROWS = {
     "izin_guru": (8,),
     "cuti_guru": (10,),
     "sakit_guru": (8,),
-    "surat_tugas_guru": (7,),
+    "surat_tugas_guru": (1, 7, 5),
     "surat_keterangan_guru": (6,),
     "izin_murid": (7,),
     "dispensasi_murid": (4, 6),
+    "surat_pengantar_umum": (2,),
+    "surat_pengantar_cuti_guru": (2,),
+    "permohonan_penceramah": (4, 4),
+    "surat_keterangan_kehilangan_murid": (3, 8),
+    "surat_rekomendasi_murid": (3, 4, 4),
+    "undangan_umum": (4, 5),
 }
 
 CASE_FIELDS = {
@@ -64,8 +70,11 @@ CASE_FIELDS = {
         "keperluan": "Pemulihan kesehatan & pemeriksaan dokter",
     },
     "surat_tugas_guru": {
+        "dasar": "Surat undangan resmi dari instansi penyelenggara\nHasil rapat pimpinan sekolah",
         "tanggal_mulai": "2026-08-24",
         "tanggal_selesai": "2026-08-25",
+        "waktu": "07.30 WIB sampai selesai",
+        "tempat_kegiatan": "Balai Pendidikan Menengah Kabupaten Gunungkidul",
         "keperluan": "Rapat koordinasi & evaluasi pendidikan",
     },
     "surat_keterangan_guru": {
@@ -85,6 +94,61 @@ CASE_FIELDS = {
         "tanggal_mulai": "2026-08-24",
         "tanggal_selesai": "2026-08-25",
         "keperluan": "Mengikuti kegiatan sebagai perwakilan sekolah",
+    },
+    "surat_pengantar_umum": {
+        "tujuan": "Kepala Dinas Pendidikan, Pemuda, dan Olahraga DIY",
+        "alamat_tujuan": "Kompleks Kepatihan, Yogyakarta",
+        "jenis_barang": "Laporan administrasi program sekolah",
+        "jumlah_barang": "1 berkas",
+        "keterangan_pengantar": "Dikirim dengan hormat untuk mendapat penyelesaian sebagaimana mestinya.",
+    },
+    "surat_pengantar_cuti_guru": {
+        "tujuan": "Kepala Balai Pendidikan Menengah Kabupaten Gunungkidul",
+        "alamat_tujuan": "di Wonosari",
+        "jenis_cuti": "Cuti Tahunan",
+        "jumlah_barang": "1 berkas",
+        "keterangan_pengantar": "Dikirim dengan hormat untuk mendapat penyelesaian sebagaimana mestinya.",
+    },
+    "permohonan_penceramah": {
+        "sifat": "Biasa",
+        "lampiran": "-",
+        "perihal": "Permohonan Penceramah",
+        "penerima": "Bapak/Ibu Penceramah",
+        "alamat_penerima": "di Wonosari",
+        "latar_kegiatan": "Dalam rangka pembinaan karakter, sekolah akan menyelenggarakan pengajian bagi warga sekolah.",
+        "hari": "Selasa",
+        "tanggal_kegiatan": "2026-08-25",
+        "waktu": "08.00 WIB sampai selesai",
+        "tempat_kegiatan": "Aula SMA Negeri 2 Wonosari",
+    },
+    "surat_keterangan_kehilangan_murid": {
+        "barang_hilang": "Kartu ATM PIP BNI",
+        "tempat_tanggal_lahir": "Wonosari, 1 Januari 2010",
+        "jenis_kelamin_lengkap": "Laki-Laki",
+        "nomor_rekening": "1234567890",
+        "nama_ibu_kandung": "IBU QA E-SURAT",
+        "keperluan": "Digunakan untuk pengurusan penggantian kartu ATM PIP yang hilang.",
+    },
+    "surat_rekomendasi_murid": {
+        "nama_kegiatan": "Olimpiade Ekonomi Syariah Nasional Tahun 2026",
+        "guru_pendamping": "GURU PENDAMPING QA",
+        "nip_guru_pendamping": "190000000000000003",
+        "email_guru_pendamping": "pendamping@example.sch.id",
+        "telepon_guru_pendamping": "081234567890",
+        "kontak_peserta": "peserta1@example.sch.id / 081200000001\npeserta2@example.sch.id / 081200000002",
+        "keperluan": "Dibuat sebagai salah satu persyaratan pendaftaran kegiatan.",
+    },
+    "undangan_umum": {
+        "sifat": "Biasa",
+        "lampiran": "-",
+        "perihal": "Undangan Rapat Komite",
+        "penerima": "Bapak/Ibu Pengurus Komite SMA Negeri 2 Wonosari",
+        "alamat_penerima": "di Tempat",
+        "hari": "Rabu",
+        "tanggal_kegiatan": "2026-08-26",
+        "waktu": "09.00 WIB sampai selesai",
+        "tempat_kegiatan": "Ruang Pertemuan SMA Negeri 2 Wonosari",
+        "acara": "Koordinasi program sekolah tahun pelajaran 2026/2027",
     },
 }
 
@@ -125,7 +189,9 @@ def _assert_valid_docx(
 
     top_level = [paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text.strip()]
     try:
-        signature_start = next(index for index, text in enumerate(top_level) if text.startswith("Wonosari,"))
+        signature_start = max(
+            index for index, text in enumerate(top_level) if text.startswith("Wonosari,")
+        )
     except StopIteration as exc:
         raise AssertionError(f"{jenis}: blok tanda tangan tidak ditemukan") from exc
     signature = top_level[signature_start:]
@@ -145,9 +211,16 @@ def _assert_valid_docx(
             raise AssertionError(f"{jenis}: subjek surat keliru menjadi penandatangan")
 
 
-def _expected_signer(jenis: str, info: dict, person: dict, state: dict, fields: dict) -> dict[str, str]:
+def _expected_signer(
+    jenis: str,
+    info: dict,
+    person: dict | None,
+    state: dict,
+    fields: dict,
+) -> dict[str, str]:
     signer_kind = str(info["signer"])
     if signer_kind == "pemohon":
+        assert person is not None
         return {"nama": person["nama"], "nip": person.get("nip", ""), "peran": "Pemohon"}
     if signer_kind == "wali":
         return {"nama": fields["nama_wali"], "nip": "", "peran": "Orang Tua / Wali"}
@@ -186,7 +259,7 @@ def main() -> None:
             kepsek_nip = state["kepsek"]["nip"]
             guru = next(record for record in state["guru"] if record["nip"] != kepsek_nip)
             murid = state["murid"][0]
-            dispensasi_students = state["murid"][:3]
+            selected_students = state["murid"][:3]
 
             with qa_app.test_client() as client:
                 csrf_response = client.get("/api/csrf")
@@ -195,7 +268,18 @@ def main() -> None:
                 csrf_token = csrf_response.get_json()["csrf_token"]
 
                 for jenis, info in JENIS_SURAT.items():
-                    person = guru if info["kategori"] == "guru" else murid
+                    mode = str(info.get("person_mode", "single"))
+                    if mode == "multiple" and info["kategori"] == "guru":
+                        selected_people = state["guru"]
+                    elif mode == "multiple":
+                        selected_people = selected_students
+                    else:
+                        selected_people = []
+                    person = (
+                        None
+                        if mode == "none"
+                        else (selected_people[0] if selected_people else (guru if info["kategori"] == "guru" else murid))
+                    )
                     fields = dict(CASE_FIELDS[jenis])
                     request_id = f"qa-integration-{jenis.replace('_', '-')}"
                     form = {
@@ -203,14 +287,17 @@ def main() -> None:
                         "request_id": request_id,
                         "jenis_surat": jenis,
                         "kategori": info["kategori"],
-                        "id_value": person.get("nip") or person["nis"],
+                        "id_value": (person.get("nip") or person["nis"]) if person else "",
                         "tanggal_surat": "2026-08-23",
                         "kode_arsip": info["default_kode"],
                         **fields,
                     }
-                    if jenis == "dispensasi_murid":
+                    if mode == "multiple":
                         form = MultiDict(
-                            [*form.items(), *(("student_ids", item["nis"]) for item in dispensasi_students)]
+                            [
+                                *form.items(),
+                                *(("person_ids", item.get("nip") or item["nis"]) for item in selected_people),
+                            ]
                         )
                     response = client.post("/generate", data=form)
                     if response.status_code != 200:
@@ -219,9 +306,9 @@ def main() -> None:
 
                     expected_signer = _expected_signer(jenis, info, person, state, fields)
                     subject_names = (
-                        [item["nama"] for item in dispensasi_students]
-                        if jenis == "dispensasi_murid"
-                        else [person["nama"]]
+                        [item["nama"] for item in selected_people]
+                        if selected_people
+                        else ([person["nama"]] if person else [])
                     )
                     _assert_valid_docx(response.data, jenis, expected_signer, subject_names)
                     output_path = OUTPUT_DIR / f"{jenis}.docx"

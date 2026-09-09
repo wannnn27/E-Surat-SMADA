@@ -24,7 +24,7 @@
     form: byId('suratForm'),
     jenisInput: byId('jenisSurat'),
     idInput: byId('id_value'),
-    studentIdsInputs: byId('studentIdsInputs'),
+    personIdsInputs: byId('personIdsInputs'),
     requestIdInput: byId('requestId'),
     searchBox: byId('searchBox'),
     searchResults: byId('searchResults'),
@@ -48,9 +48,11 @@
     reopenSummaryBtn: byId('reopenSummaryBtn'),
     gridGuru: byId('gridGuru'),
     gridMurid: byId('gridMurid'),
+    gridUmum: byId('gridUmum'),
     step2SelectedSurat: byId('step2SelectedSurat'),
     step3SelectedSurat: byId('step3SelectedSurat'),
-    step3SelectedPerson: byId('step3SelectedPerson')
+    step3SelectedPerson: byId('step3SelectedPerson'),
+    changePersonBtn: byId('changePersonBtn')
   };
 
   const panels = {
@@ -136,37 +138,61 @@
     return state.jenis ? jenisSuratData[state.jenis] || null : null;
   }
 
+  function personMode() {
+    const info = currentInfo();
+    if (info && ['none', 'single', 'multiple'].includes(info.person_mode)) return info.person_mode;
+    return Number(info && info.max_people) > 1 ? 'multiple' : 'single';
+  }
+
+  function requiresPerson() {
+    return personMode() !== 'none';
+  }
+
   function maxPeople() {
     const info = currentInfo();
-    return Math.max(1, Number(info && info.max_people) || 1);
+    const value = Number(info && info.max_people);
+    return Number.isFinite(value) && value > 0 ? value : null;
   }
 
   function isMultiPersonSelection() {
-    return maxPeople() > 1;
+    return personMode() === 'multiple';
+  }
+
+  function selectionStatusText() {
+    const limit = maxPeople();
+    const noun = state.kategori === 'murid' ? 'siswa' : 'guru/staf';
+    return limit
+      ? state.persons.length + ' dari ' + limit + ' ' + noun + ' dipilih. Cari personel lain atau lanjutkan.'
+      : state.persons.length + ' ' + noun + ' dipilih. Tidak ada batas jumlah; cari personel lain atau lanjutkan.';
   }
 
   function syncPersonInputs() {
     const people = state.persons.length ? state.persons : (state.person ? [state.person] : []);
     state.person = people[0] || null;
     elements.idInput.value = state.person ? personId(state.person, state.kategori) : '';
-    if (!elements.studentIdsInputs) return;
-    elements.studentIdsInputs.replaceChildren();
+    elements.idInput.required = requiresPerson();
+    if (!elements.personIdsInputs) return;
+    elements.personIdsInputs.replaceChildren();
     if (!isMultiPersonSelection()) return;
     people.forEach((person) => {
       const input = document.createElement('input');
       input.type = 'hidden';
-      input.name = 'student_ids';
-      input.value = personId(person, 'murid');
-      elements.studentIdsInputs.append(input);
+      input.name = 'person_ids';
+      input.value = personId(person, state.kategori);
+      elements.personIdsInputs.append(input);
     });
   }
 
   function categoryLabel(kategori) {
-    return kategori === 'murid' ? 'Siswa / Murid' : 'Guru / Staff';
+    if (kategori === 'murid') return 'Siswa / Murid';
+    if (kategori === 'umum') return 'Umum / Eksternal';
+    return 'Guru / Staff';
   }
 
   function categoryDatabaseLabel(kategori) {
-    return kategori === 'murid' ? 'Database Murid' : 'Database Guru';
+    if (kategori === 'murid') return 'Database Murid';
+    if (kategori === 'umum') return 'Tanpa Data Personel';
+    return 'Database Guru';
   }
 
   function personId(person, kategori) {
@@ -406,7 +432,7 @@
 
   function activateCategory(kategori, options) {
     const settings = Object.assign({ resetMismatch: true }, options || {});
-    if (kategori !== 'guru' && kategori !== 'murid') return;
+    if (!['guru', 'murid', 'umum'].includes(kategori)) return;
     const info = currentInfo();
     if (settings.resetMismatch && info && info.kategori !== kategori) clearTemplateSelection();
     state.kategori = kategori;
@@ -419,6 +445,7 @@
     });
     elements.gridGuru.hidden = kategori !== 'guru';
     elements.gridMurid.hidden = kategori !== 'murid';
+    elements.gridUmum.hidden = kategori !== 'umum';
 
     if (state.phase === 1) {
       elements.wizardHeaderBadge.textContent = 'Kategori: ' + categoryLabel(kategori);
@@ -452,6 +479,16 @@
       : 'Ketik minimal 2 karakter nama atau NIP guru/staff...';
 
     if (sourceModal) closeModal(modals.templates, { restoreFocus: false });
+    if (!requiresPerson()) {
+      syncPersonInputs();
+      setStatus(
+        elements.wizardStatus,
+        'Template umum dipilih. Template ini tidak memerlukan pilihan personel.',
+        'success'
+      );
+      void loadFields();
+      return;
+    }
     setStatus(elements.wizardStatus, 'Template “' + (info.label || key) + '” dipilih. Cari personel yang sesuai.', 'success');
     setWizardStep(2);
   }
@@ -504,8 +541,8 @@
     setStatus(
       elements.searchStatus,
       state.persons.length
-        ? state.persons.length + ' dari ' + maxPeople() + ' siswa dipilih. Cari siswa lain atau lanjutkan.'
-        : 'Pilih minimal satu siswa dari database resmi.',
+        ? selectionStatusText()
+        : 'Pilih minimal satu personel dari database resmi.',
       state.persons.length ? 'success' : 'info'
     );
     updateStepAvailability();
@@ -784,9 +821,9 @@
   }
 
   async function loadFields() {
-    if (!state.jenis || !state.person) return;
+    if (!state.jenis || (requiresPerson() && !state.person)) return;
     const jenis = state.jenis;
-    const selectedId = personId(state.person, state.kategori);
+    const selectedId = state.person ? personId(state.person, state.kategori) : '';
     const controller = requestController('fields');
     state.loadingFields = true;
     state.fieldsLoaded = false;
@@ -803,8 +840,8 @@
       if (
         controller.signal.aborted ||
         state.jenis !== jenis ||
-        !state.person ||
-        personId(state.person, state.kategori) !== selectedId
+        (requiresPerson() && !state.person) ||
+        (state.person && personId(state.person, state.kategori) !== selectedId)
       ) return;
 
       const fields = (Array.isArray(payload.fields) ? payload.fields : []).filter(
@@ -865,11 +902,12 @@
 
     if (isMultiPersonSelection()) {
       if (state.persons.some((item) => personId(item, kategori) === id)) {
-        setStatus(elements.searchStatus, 'Siswa tersebut sudah dipilih.', 'info');
+        setStatus(elements.searchStatus, 'Personel tersebut sudah dipilih.', 'info');
         return;
       }
-      if (state.persons.length >= maxPeople()) {
-        setStatus(elements.searchStatus, 'Maksimal ' + maxPeople() + ' siswa dalam satu surat dispensasi.', 'error');
+      const limit = maxPeople();
+      if (limit && state.persons.length >= limit) {
+        setStatus(elements.searchStatus, 'Maksimal ' + limit + ' personel dalam template ini.', 'error');
         return;
       }
       abortRequest('search');
@@ -883,7 +921,7 @@
       invalidateSummary();
       setStatus(
         elements.searchStatus,
-        state.persons.length + ' dari ' + maxPeople() + ' siswa dipilih. Cari siswa lain atau lanjutkan.',
+        selectionStatusText(),
         'success'
       );
       updateStepAvailability();
@@ -911,8 +949,10 @@
 
   function stepPrerequisite(step) {
     if (step === 1) return true;
-    if (step === 2) return Boolean(state.jenis);
-    if (step === 3) return Boolean(state.jenis && state.person && state.fieldsLoaded);
+    if (step === 2) return Boolean(state.jenis && requiresPerson());
+    if (step === 3) {
+      return Boolean(state.jenis && (!requiresPerson() || state.person) && state.fieldsLoaded);
+    }
     if (step === 4) return Boolean(state.summaryValid);
     return false;
   }
@@ -982,7 +1022,12 @@
         ? 'header-pill-badge purple'
         : 'header-pill-badge';
       setButtonContent(elements.btnCancel, 'Batal');
-      setButtonContent(elements.previewBtn, 'Lanjut ke Cari Personel', 'fa-solid fa-arrow-right', true);
+      setButtonContent(
+        elements.previewBtn,
+        requiresPerson() ? 'Lanjut ke Cari Personel' : 'Lanjut ke Isi Detail',
+        'fa-solid fa-arrow-right',
+        true
+      );
     } else if (step === 2) {
       elements.step2SelectedSurat.textContent = info.label || state.jenis || '-';
       elements.wizardHeaderIcon.className = 'fa-solid fa-magnifying-glass';
@@ -998,9 +1043,12 @@
       );
     } else if (step === 3) {
       elements.step3SelectedSurat.textContent = info.label || state.jenis || '-';
-      elements.step3SelectedPerson.textContent = state.persons.length > 1
-        ? state.persons.map(personName).join(', ')
-        : (personName(state.person) || '-');
+      elements.step3SelectedPerson.textContent = !requiresPerson()
+        ? 'Tidak diperlukan'
+        : state.persons.length > 1
+          ? state.persons.map(personName).join(', ')
+          : (personName(state.person) || '-');
+      elements.changePersonBtn.hidden = !requiresPerson();
       elements.wizardHeaderIcon.className = 'fa-solid fa-pen-to-square';
       elements.wizardHeaderTitle.textContent = 'Langkah 3: Parameter & Rincian Surat';
       elements.wizardHeaderBadge.textContent = 'Formulir Detail';
@@ -1058,17 +1106,27 @@
 
     addSummaryRow(fragment, 'Jenis Surat', info.label || state.jenis || '—', 'jenis_surat');
     addSummaryRow(fragment, 'Kategori', categoryLabel(info.kategori || state.kategori), 'kategori');
-    const students = Array.isArray(payload.students) && payload.students.length
-      ? payload.students
+    const people = Array.isArray(payload.people) && payload.people.length
+      ? payload.people
       : state.persons;
-    if (Number(info.max_people) > 1) {
-      students.forEach((student, index) => {
-        const prefix = 'Siswa ' + (index + 1);
-        addSummaryRow(fragment, prefix + ' - Nama', personName(student), 'student_' + index + '_nama');
-        addSummaryRow(fragment, prefix + ' - NIS', personId(student, 'murid'), 'student_' + index + '_nis');
-        addSummaryRow(fragment, prefix + ' - Kelas', student.kelas, 'student_' + index + '_kelas');
+    if (personMode() === 'multiple') {
+      people.forEach((item, index) => {
+        const prefix = (info.kategori === 'murid' ? 'Siswa ' : 'Personel ') + (index + 1);
+        addSummaryRow(fragment, prefix + ' - Nama', personName(item), 'person_' + index + '_nama');
+        addSummaryRow(
+          fragment,
+          prefix + (info.kategori === 'murid' ? ' - NIS' : ' - NIP'),
+          personId(item, info.kategori),
+          'person_' + index + '_id'
+        );
+        addSummaryRow(
+          fragment,
+          prefix + (info.kategori === 'murid' ? ' - Kelas' : ' - Jabatan'),
+          info.kategori === 'murid' ? item.kelas : item.jabatan,
+          'person_' + index + '_detail'
+        );
       });
-    } else {
+    } else if (personMode() === 'single') {
       addSummaryRow(fragment, 'Nama Personel', personName(person), 'nama');
       addSummaryRow(
         fragment,
@@ -1113,7 +1171,7 @@
       setStatus(elements.fieldsStatus, 'Lengkapi field wajib dan perbaiki nilai yang tidak valid.', 'error');
       return false;
     }
-    if (!state.jenis || !state.person || !state.fieldsLoaded) {
+    if (!state.jenis || (requiresPerson() && !state.person) || !state.fieldsLoaded) {
       setStatus(elements.wizardStatus, 'State formulir tidak lengkap. Pilih ulang template dan personel.', 'error');
       return false;
     }
@@ -1260,8 +1318,14 @@
       if (!blob.size) throw new Error('Dokumen kosong dan tidak dapat diunduh.');
 
       const info = currentInfo() || {};
-      const groupSuffix = state.persons.length > 1 ? '-dan-' + (state.persons.length - 1) + '-siswa' : '';
-      const fallback = (state.jenis || 'surat') + '-' + (personName(state.person) || 'personel') + groupSuffix + extension;
+      const groupNoun = state.kategori === 'murid' ? 'siswa' : 'orang';
+      const groupSuffix = state.persons.length > 1
+        ? '-dan-' + (state.persons.length - 1) + '-' + groupNoun
+        : '';
+      const fallbackSubject = personName(state.person) || (state.summary && state.summary.context && (
+        state.summary.context.penerima || state.summary.context.tujuan
+      )) || 'surat';
+      const fallback = (state.jenis || 'surat') + '-' + fallbackSubject + groupSuffix + extension;
       const filename = safeFilename(parseFilename(response.headers.get('Content-Disposition')) || fallback, format);
       const letterNumber = response.headers.get('X-Letter-Number') || '';
       downloadBlob(blob, filename);
@@ -1697,7 +1761,7 @@
     state.dataVersion += 1;
     elements.jenisInput.value = '';
     elements.idInput.value = '';
-    if (elements.studentIdsInputs) elements.studentIdsInputs.replaceChildren();
+    if (elements.personIdsInputs) elements.personIdsInputs.replaceChildren();
     elements.requestIdInput.value = '';
     elements.dynamicFields.replaceChildren();
     elements.summaryList.replaceChildren();
@@ -1729,7 +1793,9 @@
         focusStep(1);
         return;
       }
-      setWizardStep(2);
+      if (requiresPerson()) setWizardStep(2);
+      else if (!state.fieldsLoaded) await loadFields();
+      else setWizardStep(3);
     } else if (state.phase === 2) {
       if (!state.person) {
         setStatus(elements.wizardStatus, 'Cari dan pilih personel dari hasil resmi.', 'error');
@@ -1751,7 +1817,7 @@
   function handleBackAction() {
     if (state.phase === 1) requestReset();
     else if (state.phase === 2) setWizardStep(1);
-    else if (state.phase === 3) setWizardStep(2);
+    else if (state.phase === 3) setWizardStep(requiresPerson() ? 2 : 1);
     else if (state.phase === 4) setWizardStep(3);
   }
 
@@ -1787,7 +1853,10 @@
       tab.addEventListener('keydown', (event) => {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
         event.preventDefault();
-        const next = tab.getAttribute('data-kategori') === 'guru' ? byId('tabMurid') : byId('tabGuru');
+        const tabs = Array.from(document.querySelectorAll('.category-tab'));
+        const currentIndex = tabs.indexOf(tab);
+        const direction = event.key === 'ArrowRight' ? 1 : -1;
+        const next = tabs[(currentIndex + direction + tabs.length) % tabs.length];
         next.click();
         next.focus();
       });

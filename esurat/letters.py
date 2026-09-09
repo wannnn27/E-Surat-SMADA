@@ -13,7 +13,6 @@ from .config import (
     AUTO_NUMBER_PREVIEW,
     CUSTOM_NUMBER_RE,
     MAX_ID_LENGTH,
-    MAX_DISPENSATION_STUDENTS,
     MAX_TEXT_LENGTH,
     REQUEST_ID_RE,
 )
@@ -62,7 +61,16 @@ def _common_fields(info: Mapping[str, Any], today_iso: str) -> list[dict[str, An
 def _public_info(jenis: str, info: Mapping[str, Any], today_iso: str, *, combined: bool) -> dict[str, Any]:
     public = {
         key: info[key]
-        for key in ("label", "deskripsi", "kategori", "icon", "badge", "max_people", "is_custom")
+        for key in (
+            "label",
+            "deskripsi",
+            "kategori",
+            "icon",
+            "badge",
+            "person_mode",
+            "max_people",
+            "is_custom",
+        )
         if key in info
     }
     specific = []
@@ -98,6 +106,27 @@ def _request_values(form_data: Mapping[str, Any], name: str) -> list[str]:
     return [value for value in normalized if value]
 
 
+def _person_mode(info: Mapping[str, Any]) -> str:
+    mode = str(info.get("person_mode", "")).casefold()
+    if mode in {"none", "single", "multiple"}:
+        return mode
+    try:
+        return "multiple" if int(info.get("max_people", 1)) > 1 else "single"
+    except (TypeError, ValueError):
+        return "single"
+
+
+def _max_people(info: Mapping[str, Any]) -> int | None:
+    raw = info.get("max_people")
+    if raw in {None, ""}:
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
 def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[str, Any]:
     state = current_app.extensions["esurat_data"]
     field_errors: dict[str, str] = {}
@@ -109,38 +138,48 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
         raise RequestValidationError("Jenis surat tidak valid", {"jenis_surat": "pilih jenis yang tersedia"})
 
     posted_category = _request_value(form_data, "kategori")
-    if posted_category and posted_category not in {"guru", "murid"}:
-        field_errors["kategori"] = "kategori harus guru atau murid"
+    if posted_category and posted_category not in {"guru", "murid", "umum"}:
+        field_errors["kategori"] = "kategori harus guru, murid, atau umum"
     elif posted_category and posted_category != info["kategori"]:
         field_errors["kategori"] = "kategori tidak sesuai jenis surat"
 
+    mode = _person_mode(info)
     id_value = _request_value(form_data, "id_value")
     people: list[dict[str, str]] = []
-    if int(info.get("max_people", 1)) > 1:
-        student_ids = _request_values(form_data, "student_ids") or (
-            [id_value] if id_value else []
-        )
-        if not 1 <= len(student_ids) <= MAX_DISPENSATION_STUDENTS:
-            field_errors["student_ids"] = (
-                f"pilih 1-{MAX_DISPENSATION_STUDENTS} siswa untuk surat dispensasi"
-            )
-        elif len(set(student_ids)) != len(student_ids):
-            field_errors["student_ids"] = "siswa yang sama tidak boleh dipilih dua kali"
+    person: dict[str, str] | None
+    if mode == "none":
+        person = None
+        id_value = ""
+    elif mode == "multiple":
+        posted_person_ids = _request_values(form_data, "person_ids")
+        legacy_student_ids = _request_values(form_data, "student_ids")
+        identifier_field = "person_ids" if posted_person_ids else "student_ids"
+        person_ids = posted_person_ids or legacy_student_ids or ([id_value] if id_value else [])
+        maximum = _max_people(info)
+        if not person_ids:
+            field_errors[identifier_field] = "pilih minimal satu personel"
+        elif maximum is not None and len(person_ids) > maximum:
+            field_errors[identifier_field] = f"maksimal {maximum} personel dalam satu surat"
+        elif len(set(person_ids)) != len(person_ids):
+            field_errors[identifier_field] = "personel yang sama tidak boleh dipilih dua kali"
         else:
-            for student_id in student_ids:
-                if len(student_id) > MAX_ID_LENGTH or not student_id.isdigit():
-                    field_errors["student_ids"] = "setiap identifier siswa harus berupa angka"
+            for person_id in person_ids:
+                if len(person_id) > MAX_ID_LENGTH or not person_id.isdigit():
+                    field_errors[identifier_field] = "setiap identifier personel harus berupa angka"
                     break
-                student = state["murid_by_nis"].get(student_id) or state[
-                    "murid_by_nisn"
-                ].get(student_id)
-                if student is None:
-                    field_errors["student_ids"] = f"data siswa {student_id} tidak ditemukan"
+                if info["kategori"] == "guru":
+                    selected = state["guru_by_nip"].get(person_id)
+                else:
+                    selected = state["murid_by_nis"].get(person_id) or state[
+                        "murid_by_nisn"
+                    ].get(person_id)
+                if selected is None:
+                    field_errors[identifier_field] = f"data personel {person_id} tidak ditemukan"
                     break
-                people.append(student)
+                people.append(selected)
         person = people[0] if people else None
         if person is not None:
-            id_value = person["nis"]
+            id_value = person.get("nip") or person.get("nis") or id_value
     else:
         if not id_value or len(id_value) > MAX_ID_LENGTH or not id_value.isdigit():
             field_errors["id_value"] = "identifier wajib berupa angka yang valid"
@@ -231,9 +270,10 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
 
     if field_errors:
         raise RequestValidationError("Data surat belum valid", field_errors, 422)
-    assert person is not None
+    if mode != "none":
+        assert person is not None
 
-    context = dict(person)
+    context = dict(person or {})
     # Menjamin template legacy tidak mendapat Undefined tanpa menyamarkan field form wajib.
     for legacy_key in (
         "nip",
@@ -250,6 +290,7 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
     ):
         context.setdefault(legacy_key, "")
     context.update(context_fields)
+    context["people"] = [dict(item) for item in people]
     context["students"] = [
         {
             "nama": student.get("nama", ""),
@@ -258,6 +299,7 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
             "kelas": student.get("kelas", ""),
         }
         for student in people
+        if info["kategori"] == "murid"
     ]
     context.update({str(key): str(value) for key, value in info.get("context_defaults", {}).items()})
     context["tanggal_surat"] = format_tanggal_indo(tanggal_surat_iso)
@@ -268,6 +310,7 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
 
     signer_kind = str(info["signer"])
     if signer_kind == "pemohon":
+        assert person is not None
         signer = {
             "nama": person["nama"],
             "nip": person.get("nip", ""),
@@ -305,9 +348,12 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
     normalized = {
         "jenis_surat": jenis,
         "kategori": info["kategori"],
-        "id_value": person.get("nip") or person.get("nis") or id_value,
+        "id_value": (person.get("nip") or person.get("nis") or id_value) if person else "",
+        "person_ids": [item.get("nip") or item.get("nis") or "" for item in people]
+        if mode == "multiple"
+        else [],
         "student_ids": [student.get("nis", "") for student in people]
-        if int(info.get("max_people", 1)) > 1
+        if mode == "multiple" and info["kategori"] == "murid"
         else [],
         "tanggal_surat": tanggal_surat_iso,
         "kode_arsip": kode_arsip,

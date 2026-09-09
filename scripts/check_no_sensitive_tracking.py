@@ -31,6 +31,12 @@ def main() -> None:
         suffix = PurePosixPath(normalized).suffix.casefold()
         if normalized.startswith("data/") and normalized not in ALLOWED_DATA_FILES:
             violations.append(normalized)
+        elif (
+            normalized.startswith("templates_surat/")
+            and normalized.count("/") == 1
+            and suffix == ".docx"
+        ):
+            violations.append(normalized)
         elif suffix in SENSITIVE_SUFFIXES:
             violations.append(normalized)
 
