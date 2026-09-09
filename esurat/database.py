@@ -7,7 +7,11 @@ import json
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, LiteralString, Mapping, cast
+
+if TYPE_CHECKING:
+    from psycopg import Connection as PsycopgConnection
+    from psycopg.rows import DictRow
 
 try:
     import psycopg
@@ -35,25 +39,32 @@ def _is_postgres(database: Path | str) -> bool:
     return str(database).startswith(("postgresql://", "postgres://"))
 
 
-def _table(name: str, postgres: bool) -> str:
+def _table(name: str, postgres: bool) -> LiteralString:
     """Kembalikan nama tabel statis yang aman untuk backend aktif."""
 
     if name not in {"custom_templates", "master_data", "nomor_counter", "riwayat_surat"}:
         raise ValueError(f"Nama tabel tidak dikenal: {name}")
-    return f"{POSTGRES_SCHEMA}.{name}" if postgres else name
+    # ``name`` hanya boleh berasal dari allowlist di atas. Cast ini memberi tahu
+    # type checker bahwa hasilnya aman dipakai sebagai identifier SQL internal.
+    return cast(LiteralString, f"{POSTGRES_SCHEMA}.{name}" if postgres else name)
 
 
-def _connect_db(db_path: Path | str):
+def _connect_db(
+    db_path: Path | str,
+) -> "sqlite3.Connection | PsycopgConnection[DictRow]":
     if _is_postgres(db_path):
         if psycopg is None:
             raise RuntimeError("Driver PostgreSQL psycopg belum terpasang")
         # Supabase Transaction Pooler tidak mendukung named prepared statements.
         # Menonaktifkannya juga mencegah state statement bocor antar koneksi pool.
-        return psycopg.connect(
-            str(db_path),
-            row_factory=dict_row,
-            prepare_threshold=None,
-            connect_timeout=10,
+        return cast(
+            "PsycopgConnection[DictRow]",
+            psycopg.connect(
+                str(db_path),
+                row_factory=dict_row,
+                prepare_threshold=None,
+                connect_timeout=10,
+            ),
         )
     conn = sqlite3.connect(db_path, timeout=10.0, isolation_level=None)
     conn.row_factory = sqlite3.Row
@@ -66,8 +77,14 @@ def _begin_write(conn, postgres: bool) -> None:
     conn.execute("BEGIN" if postgres else "BEGIN IMMEDIATE")
 
 
-def _sql(query: str, postgres: bool) -> str:
-    return query.replace("?", "%s") if postgres else query
+def _sql(query: str, postgres: bool) -> LiteralString:
+    """Adaptasi placeholder untuk query internal yang sudah dipercaya.
+
+    Seluruh identifier dinamis dibentuk oleh :func:`_table` atau allowlist
+    migrasi lokal; nilai dari pengguna tetap dikirim sebagai parameter query.
+    """
+
+    return cast(LiteralString, query.replace("?", "%s") if postgres else query)
 
 
 def init_db(db_path: Path | str = DB_PATH) -> None:
@@ -128,7 +145,12 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
         }
         for column, column_type in additions.items():
             if column not in existing:
-                conn.execute(f'ALTER TABLE riwayat_surat ADD COLUMN "{column}" {column_type}')
+                conn.execute(
+                    _sql(
+                        f'ALTER TABLE riwayat_surat ADD COLUMN "{column}" {column_type}',
+                        False,
+                    )
+                )
 
         # Record sebelum schema status/audit dianggap surat legacy yang telah
         # dibuat. Backfill ini membuat filter dan ekspor konsisten tanpa
@@ -179,11 +201,12 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
             )
             """
         )
-        custom_table_sql = str(
-            conn.execute(
-                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'custom_templates'"
-            ).fetchone()["sql"]
-        )
+        custom_table_row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'custom_templates'"
+        ).fetchone()
+        if custom_table_row is None:
+            raise RuntimeError("Schema custom_templates SQLite tidak dapat dibaca")
+        custom_table_sql = str(custom_table_row["sql"])
         custom_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(custom_templates)")
         }
@@ -222,7 +245,8 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
                 """
             )
             conn.execute(
-                f"""
+                _sql(
+                    f"""
                 INSERT INTO custom_templates_migrated (
                     key, label, description, category, default_code, signer,
                     person_mode, max_people, fields_json, filename, content,
@@ -232,7 +256,9 @@ def init_db(db_path: Path | str = DB_PATH) -> None:
                     {person_mode_expr}, {max_people_expr}, fields_json, filename,
                     content, sha256, active, created_at, updated_at, created_by
                 FROM custom_templates
-                """
+                """,
+                    False,
+                )
             )
             conn.execute("DROP TABLE custom_templates")
             conn.execute("ALTER TABLE custom_templates_migrated RENAME TO custom_templates")
@@ -510,9 +536,12 @@ def load_custom_templates_fingerprint(database: Path | str) -> str:
     conn = _connect_db(database)
     try:
         rows = conn.execute(
-            f"SELECT key, label, description, category, default_code, signer, "
-            f"person_mode, max_people, fields_json, filename, sha256 FROM {table} "
-            f"WHERE active = {'TRUE' if postgres else '1'} ORDER BY key"
+            _sql(
+                f"SELECT key, label, description, category, default_code, signer, "
+                f"person_mode, max_people, fields_json, filename, sha256 FROM {table} "
+                f"WHERE active = {'TRUE' if postgres else '1'} ORDER BY key",
+                postgres,
+            )
         ).fetchall()
     finally:
         conn.close()
@@ -728,6 +757,8 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
                         """,
                         (kode, year, now_iso),
                     ).fetchone()
+                    if counter is None:
+                        raise RuntimeError("Counter nomor PostgreSQL tidak dikembalikan")
                     sequence = int(counter["last_seq"])
                 else:
                     counter = conn.execute(
@@ -804,7 +835,15 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
                 actor_role,
             ),
         )
-        record_id = cursor.fetchone()["id"] if postgres else cursor.lastrowid
+        if postgres:
+            inserted = cursor.fetchone()
+            if inserted is None:
+                raise RuntimeError("ID riwayat PostgreSQL tidak dikembalikan")
+            record_id = inserted["id"]
+        else:
+            record_id = getattr(cursor, "lastrowid", None)
+            if record_id is None:
+                raise RuntimeError("ID riwayat SQLite tidak dikembalikan")
         conn.commit()
         return {
             "id": record_id,

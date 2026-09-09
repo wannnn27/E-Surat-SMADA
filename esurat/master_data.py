@@ -33,7 +33,7 @@ def _read_json_list(path: Path, label: str) -> list[dict[str, Any]]:
 
 
 def _clean_record(record: Mapping[str, Any]) -> dict[str, str]:
-    return {str(key): _normalize_text(value) if value is not None else "" for key, value in record.items()}
+    return {key: _normalize_text(value) if value is not None else "" for key, value in record.items()}
 
 
 def _ensure_unique(index: dict[str, dict[str, str]], key: str, record: dict[str, str], label: str) -> None:
