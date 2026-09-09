@@ -86,6 +86,9 @@ python scripts/generate_qa_letters.py
 python scripts/verify_backup.py <direktori-backup-uji>
 python -m compileall app.py esurat scripts tests
 node --check static/app.js
+node --check static/login.js
+node --check static/session.js
+python -m pyrefly check --config pyrefly.toml --min-severity warn
 ```
 
 - [ ] Semua perintah lulus pada artefak yang benar-benar akan dideploy.
@@ -102,9 +105,9 @@ node --check static/app.js
 ## E. UAT Tata Usaha dan dokumen
 
 - [ ] Data owner menyetujui guru/staf, siswa, kode arsip, dan Kepala Sekolah.
-- [ ] TU menyetujui batas tujuh jenis aktif; 18 template lain dinyatakan di luar
+- [ ] TU menyetujui 13 jenis bawaan aktif; 18 template legacy dinyatakan di luar
   scope pilot.
-- [ ] Setiap 7 jenis dibuat dengan skenario normal, teks panjang, dan karakter
+- [ ] Setiap 13 jenis dibuat dengan skenario normal, teks panjang, dan karakter
   khusus yang sah.
 - [ ] Dua pemeriksa membuka DOCX di Microsoft Word tanpa repair warning.
 - [ ] Kop, logo, font, margin, tabel, pagination, identitas, nomor, tanggal,

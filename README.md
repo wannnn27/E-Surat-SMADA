@@ -226,12 +226,16 @@ pengguna ke layar login.
 Pemeriksaan kandidat rilis:
 
 ```powershell
+python -m pip install -r requirements-dev.txt
 python scripts/check_no_sensitive_tracking.py
 python -m pip check
 python -m unittest discover -s tests -v
 python scripts/generate_qa_letters.py
 python -m compileall app.py esurat scripts tests
 node --check static/app.js
+node --check static/login.js
+node --check static/session.js
+python -m pyrefly check --config pyrefly.toml --min-severity warn
 ```
 
 QA DOCX selalu memakai data sintetis dari `tests/fixtures/`, bukan master
@@ -271,3 +275,5 @@ Word, dan persetujuan dua orang.
   dan scope template.
 - [Checklist Rilis](docs/RELEASE_CHECKLIST.md) — langkah teknis dan persetujuan
   yang harus selesai sebelum serah terima.
+- [Status Serah Terima 10 September 2026](docs/STATUS_SERAH_TERIMA_2026-09-10.md)
+  — hasil audit terakhir dan tindakan wajib sebelum memakai data nyata.

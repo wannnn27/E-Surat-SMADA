@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import io
 from html import escape
-from typing import Iterable
+from typing import Iterable, Literal, cast
 
 from docx import Document
 from docx.document import Document as DocxDocument
@@ -34,18 +34,24 @@ MAX_TABLE_CELLS = 2_000
 class _EmbeddedImage(Flowable):
     """Gambar in-memory yang stabil untuk render berulang dalam satu proses."""
 
-    def __init__(self, payload: bytes, width: float, height: float, h_align: str) -> None:
+    def __init__(
+        self,
+        payload: bytes,
+        width: float,
+        height: float,
+        h_align: Literal["CENTER", "LEFT", "RIGHT"],
+    ) -> None:
         super().__init__()
         self._reader = ImageReader(io.BytesIO(payload))
         self.drawWidth = width
         self.drawHeight = height
         self.hAlign = h_align
 
-    def wrap(self, available_width: float, available_height: float) -> tuple[float, float]:
-        if self.drawWidth > available_width or self.drawHeight > available_height:
+    def wrap(self, aW: float, aH: float) -> tuple[float, float]:
+        if self.drawWidth > aW or self.drawHeight > aH:
             scale = min(
-                available_width / self.drawWidth,
-                available_height / self.drawHeight,
+                aW / self.drawWidth,
+                aH / self.drawHeight,
             )
             self.drawWidth *= scale
             self.drawHeight *= scale
@@ -86,22 +92,27 @@ def _points(value, default: float = 0.0) -> float:
 def _font_size(paragraph: DocxParagraph) -> float:
     for run in paragraph.runs:
         if run.font.size is not None:
-            return max(6.0, min(float(run.font.size.pt), 36.0))
+            return max(6.0, min(run.font.size.pt, 36.0))
     try:
-        if paragraph.style.font.size is not None:
-            return max(6.0, min(float(paragraph.style.font.size.pt), 36.0))
+        style = paragraph.style
+        if style is not None and style.font.size is not None:
+            return max(6.0, min(style.font.size.pt, 36.0))
     except (AttributeError, KeyError):
         pass
     return DEFAULT_FONT_SIZE
 
 
-def _alignment(paragraph: DocxParagraph) -> int:
-    return {
+def _alignment(paragraph: DocxParagraph) -> Literal[0, 1, 2, 4]:
+    alignment = paragraph.alignment
+    if alignment is None:
+        return TA_LEFT
+    result = {
         WD_ALIGN_PARAGRAPH.CENTER: TA_CENTER,
         WD_ALIGN_PARAGRAPH.RIGHT: TA_RIGHT,
         WD_ALIGN_PARAGRAPH.JUSTIFY: TA_JUSTIFY,
         WD_ALIGN_PARAGRAPH.DISTRIBUTE: TA_JUSTIFY,
-    }.get(paragraph.alignment, TA_LEFT)
+    }.get(alignment, TA_LEFT)
+    return cast(Literal[0, 1, 2, 4], result)
 
 
 def _run_markup(paragraph: DocxParagraph) -> str:
@@ -184,13 +195,17 @@ def _paragraph_images(paragraph: DocxParagraph, available_width: float) -> list[
             if width <= 0 or height <= 0:
                 continue
             scale = min(1.0, available_width / width)
+            h_align = cast(
+                Literal["CENTER", "LEFT", "RIGHT"],
+                {TA_CENTER: "CENTER", TA_RIGHT: "RIGHT"}.get(
+                    _alignment(paragraph), "LEFT"
+                ),
+            )
             image = _EmbeddedImage(
                 related_part.blob,
                 width * scale,
                 height * scale,
-                {TA_CENTER: "CENTER", TA_RIGHT: "RIGHT"}.get(
-                    _alignment(paragraph), "LEFT"
-                ),
+                h_align,
             )
             images.append(image)
     return images

@@ -15,7 +15,7 @@ import time
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
 from werkzeug.exceptions import HTTPException
@@ -175,7 +175,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     app.extensions["builtin_template_hashes"] = builtin_template_hashes
     app.extensions["template_hashes"] = dict(builtin_template_hashes)
     app.extensions["letter_registry"] = dict(JENIS_SURAT)
-    app.jinja_env.globals["csrf_token"] = _csrf_token
+    cast(dict[str, Any], app.jinja_env.globals)["csrf_token"] = _csrf_token
     database_lock = threading.Lock()
     login_attempts: dict[str, deque[float]] = defaultdict(deque)
     login_attempts_lock = threading.Lock()
@@ -302,7 +302,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 or request.form.get("csrf_token")
             )
             expected = session.get("csrf_token", "")
-            if not supplied or not expected or not hmac.compare_digest(str(supplied), str(expected)):
+            if not supplied or not expected or not hmac.compare_digest(supplied, expected):
                 return csrf_failure_response(endpoint)
         ensure_database_initialized()
         if endpoint != "static":
@@ -471,7 +471,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                     "role": user["role"],
                 }
             )
-        next_path = str(request.form.get("next", ""))
+        next_path = request.form.get("next", "")
         if not next_path.startswith("/") or next_path.startswith("//"):
             next_path = url_for("admin_dashboard")
         return redirect(next_path)
@@ -539,6 +539,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 ),
                 (month_start.isoformat(),),
             ).fetchone()
+            if month_row is None:
+                raise RuntimeError("Database tidak mengembalikan ringkasan surat bulan berjalan")
             month_total = int(month_row["total"])
             recent_rows = conn.execute(
                 f"""
@@ -826,6 +828,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 ),
                 params,
             ).fetchone()
+            if count_row is None:
+                raise RuntimeError("Database tidak mengembalikan jumlah riwayat surat")
             total = int(count_row["total"])
             pages = (total + per_page - 1) // per_page
             if clamp_page:
@@ -864,7 +868,9 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             "status": _request_value(request.args, "status").casefold(),
             "jenis": _request_value(request.args, "jenis"),
         }
-        filter_args = {key: value for key, value in filters.items() if value}
+        filter_args: dict[str, Any] = {
+            key: value for key, value in filters.items() if value
+        }
         context = admin_shell_context("history")
         context.update(
             {

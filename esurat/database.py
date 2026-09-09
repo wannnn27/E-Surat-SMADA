@@ -7,7 +7,9 @@ import json
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, LiteralString, Mapping, cast
+from typing import TYPE_CHECKING, Any, Mapping, cast
+
+from typing_extensions import LiteralString
 
 if TYPE_CHECKING:
     from psycopg import Connection as PsycopgConnection

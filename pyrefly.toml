@@ -1,8 +1,6 @@
 project-includes = [
     "app.py",
     "esurat/**/*.py",
-    "scripts/**/*.py",
-    "tests/**/*.py",
 ]
 project-excludes = [
     ".venv/**",

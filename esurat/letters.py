@@ -273,7 +273,7 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
     if mode != "none":
         assert person is not None
 
-    context = dict(person or {})
+    context: dict[str, Any] = dict(person or {})
     # Menjamin template legacy tidak mendapat Undefined tanpa menyamarkan field form wajib.
     for legacy_key in (
         "nip",

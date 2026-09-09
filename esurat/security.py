@@ -124,13 +124,13 @@ def _load_auth_users(config: Mapping[str, Any]) -> dict[str, dict[str, str]]:
 
 
 def _password_matches(user: Mapping[str, str], password: str) -> bool:
-    password_hash = str(user.get("password_hash") or "")
+    password_hash = user.get("password_hash") or ""
     if password_hash:
         try:
             return check_password_hash(password_hash, password)
         except (ValueError, TypeError):
             return False
-    configured = str(user.get("password") or "")
+    configured = user.get("password") or ""
     return hmac.compare_digest(configured.encode("utf-8"), password.encode("utf-8"))
 
 

@@ -1,0 +1,4 @@
+-r requirements.txt
+pyrefly==1.2.0
+types-reportlab==4.5.1.20260827
+types-waitress==3.0.1.20260724
