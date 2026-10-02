@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <title>Masuk - E-Surat SMADA</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/fontawesome.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/solid.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/regular.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="login-page">
@@ -54,7 +56,7 @@
 
       <div class="login-showcase-footer">
         <span class="login-status-dot" aria-hidden="true"></span>
-        Sistem siap digunakan
+        Akses staf Tata Usaha
       </div>
     </section>
 
@@ -74,9 +76,9 @@
           <span class="login-brand-mark" aria-hidden="true">
             <i class="fa-solid fa-user-shield"></i>
           </span>
-          <p class="login-eyebrow">AREA ADMINISTRATOR</p>
+          <p class="login-eyebrow">RUANG KERJA TATA USAHA</p>
           <h2 id="login-title">Selamat datang kembali</h2>
-          <p>Masukkan akun administrator untuk melanjutkan ke dashboard pengelolaan.</p>
+          <p>Masukkan akun staf TU untuk membuat surat dan memeriksa riwayat pekerjaan.</p>
         </div>
 
         {% if error %}
@@ -113,20 +115,21 @@
           </div>
 
           <button class="login-submit" type="submit">
-            <span>Masuk sebagai admin</span>
+            <span>Masuk ke ruang kerja</span>
             <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
           </button>
         </form>
 
         <div class="login-security-note">
           <i class="fa-solid fa-lock" aria-hidden="true"></i>
-          <p>Sesi admin aktif hingga 8 jam. Selalu keluar dari akun setelah pekerjaan selesai.</p>
+          <p>Sesi berakhir paling lambat {{ session_hours }} jam setelah login. Selalu keluar dari akun setelah pekerjaan selesai.</p>
         </div>
 
-        <p class="login-help">
+        {% if not login_required %}<p class="login-help">
           Pengguna umum tidak memerlukan akun.
           <a href="{{ url_for('index') }}">Buat surat tanpa login</a>
         </p>
+        {% else %}<p class="login-help">Belum memiliki akun? Hubungi administrator TU sekolah.</p>{% endif %}
       </div>
     </section>
   </main>

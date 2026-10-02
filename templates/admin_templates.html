@@ -29,6 +29,7 @@
       <p class="admin-panel-copy">Semua template wajib memakai <code>{{ '{{ nomor_surat }}' }}</code> dan <code>{{ '{{ tanggal_surat }}' }}</code>. Mode satu orang juga memerlukan <code>{{ '{{ nama }}' }}</code>; mode banyak orang memakai loop <code>{% raw %}{%tr for person in people %}{% endraw %}</code>. Placeholder tambahan otomatis menjadi field formulir user.</p>
 
       <form class="admin-template-form" method="post" action="{{ url_for('admin_template_upload') }}" enctype="multipart/form-data">
+        <p class="admin-panel-copy">Placeholder tambahan: huruf kecil, angka, dan underscore; maksimal 50 karakter per nama dan 30 field. Macro, objek aktif, dan hubungan eksternal tidak didukung. Tombol Nonaktifkan menyembunyikan template dari katalog dan mempertahankan sumbernya di database.</p>
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <label>Key template
           <input name="key" required maxlength="50" pattern="[a-z][a-z0-9_]{2,49}" placeholder="contoh: rekomendasi_siswa" value="{{ request.form.get('key', '') }}">
@@ -117,7 +118,7 @@
               <form method="post" action="{{ url_for('admin_template_delete', key=item.key) }}">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <label class="delete-confirm"><input type="checkbox" name="confirm" value="DELETE" required> Konfirmasi</label>
-                <button class="btn-danger-outline" type="submit"><i class="fa-solid fa-trash"></i> Hapus</button>
+                <button class="btn-danger-outline" type="submit"><i class="fa-solid fa-ban"></i> Nonaktifkan</button>
               </form>
             </article>
           {% endfor %}

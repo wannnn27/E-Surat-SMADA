@@ -136,6 +136,7 @@ def main() -> int:
         "ESURAT_USERNAME": (args.username, False),
         "ESURAT_PASSWORD_HASH": (generate_password_hash(app_password), True),
         "ESURAT_DEFAULT_ROLE": ("admin", False),
+        "ESURAT_REQUIRE_LOGIN": ("1", False),
         "ESURAT_HTTPS": ("1", False),
         "ESURAT_NUMBER_SUFFIX": ("SMADA", False),
         "ESURAT_AUTO_MIGRATE_DATABASE": ("0", False),

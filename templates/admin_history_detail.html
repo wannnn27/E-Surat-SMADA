@@ -1,0 +1,28 @@
+{% extends "admin_base.html" %}
+{% block title %}Detail Riwayat Surat{% endblock %}
+{% block eyebrow %}Pemeriksaan administrasi{% endblock %}
+{% block heading %}{{ item.nomor_surat or 'Riwayat surat' }}{% endblock %}
+{% block description %}{{ item.jenis_surat }}{% endblock %}
+{% block actions %}<a class="admin-btn admin-btn-secondary" href="{{ url_for('admin_history') }}">Kembali ke riwayat</a>{% endblock %}
+{% block content %}
+<section class="admin-panel tu-detail-panel">
+  <h2>Informasi surat</h2>
+  <dl class="tu-detail-list">
+    <div><dt>Status</dt><dd>{{ {'generated':'Dokumen dibuat', 'failed':'Pembuatan gagal', 'rendering':'Sedang diproses', 'cancelled':'Dibatalkan'}.get(item.status, 'Data lama') }}</dd></div>
+    <div><dt>Nama pemohon</dt><dd>{{ item.nama_pemohon or '-' }}</dd></div>
+    <div><dt>Identitas pemohon</dt><dd>{{ item.id_pemohon or '-' }}</dd></div>
+    <div><dt>Kategori</dt><dd>{{ item.kategori or '-' }}</dd></div>
+    <div><dt>Keperluan</dt><dd>{{ item.keperluan or '-' }}</dd></div>
+    <div><dt>Dibuat oleh</dt><dd>{{ item.created_by or 'Data lama' }} · {{ item.created_by_role or '-' }}</dd></div>
+    <div><dt>Waktu dibuat</dt><dd>{{ item.created_at_display }} WIB</dd></div>
+    <div><dt>Terakhir diperbarui</dt><dd>{{ item.updated_at_display }}</dd></div>
+    {% if item.status == 'cancelled' %}
+    <div><dt>Dibatalkan oleh</dt><dd>{{ item.cancelled_by or '-' }}</dd></div>
+    <div><dt>Waktu pembatalan</dt><dd>{{ item.cancelled_at_display }}</dd></div>
+    <div><dt>Alasan pembatalan</dt><dd>{{ item.cancel_reason or '-' }}</dd></div>
+    {% endif %}
+  </dl>
+  <p class="tu-support-note">Status dokumen dibuat berarti file berhasil dihasilkan. Pemeriksaan isi, pencetakan, dan pengesahan tetap mengikuti prosedur sekolah. Riwayat ini berisi catatan administrasi; simpan file Word atau PDF di arsip sekolah setelah diunduh.</p>
+  {% if item.status == 'failed' %}<p class="admin-alert error">Jangan mengambil nomor baru sebelum memeriksa permintaan sebelumnya. Bila formulir masih terbuka, ulangi unduhan pada formulir yang sama; hubungi admin bila tidak dapat dilanjutkan.</p>{% endif %}
+</section>
+{% endblock %}

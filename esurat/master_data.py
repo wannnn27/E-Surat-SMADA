@@ -106,6 +106,8 @@ def validate_master_data(
 
     configured_kepsek = _normalize_text(kepsek_nip)
     kepsek = guru_by_nip.get(configured_kepsek) if configured_kepsek else None
+    if configured_kepsek and kepsek is None:
+        raise DataValidationError("ESURAT_KEPSEK_NIP tidak ditemukan pada master guru; periksa konfigurasi penandatangan")
     if kepsek is None:
         candidates = [g for g in guru if "kepala sekolah" in g["jabatan"].casefold()]
         if len(candidates) != 1:

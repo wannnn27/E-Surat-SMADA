@@ -1,6 +1,6 @@
 # Panduan Operasional E-Surat SMADA
 
-Panduan ini ditujukan kepada pengguna Tata Usaha dan administrator teknis SMAN 2 Wonosari. Versi kandidat: 5 September 2026.
+Panduan ini ditujukan kepada pengguna Tata Usaha dan administrator teknis SMAN 2 Wonosari. Versi kandidat: 2 Oktober 2026.
 
 ## Batas penggunaan
 
@@ -31,11 +31,11 @@ Ringkasan di layar adalah ringkasan data tervalidasi, bukan tampilan halaman Wor
 
 | Peran | Tanggung jawab minimum |
 | --- | --- |
-| Pengguna (`user`, tanpa login) | Memilih orang yang benar, mengisi surat, memeriksa ringkasan dan DOCX, serta menyimpan hasil di lokasi arsip resmi; tidak dapat membuka riwayat, nomor manual, pembatalan, atau pengelolaan template |
+| Operator TU (`operator`, dengan login) | Membuat dan memeriksa surat, mencari data master, melihat detail riwayat, dan mengekspor rekap; tidak dapat memakai nomor manual, membatalkan, atau mengelola template |
 | Administrator (`admin`, dengan login) | Menjaga service, akun, TLS, data master, template, backup/restore; dapat melihat riwayat, mengekspor, memakai nomor manual, membatalkan, dan menambah template |
 | Pemilik data/pimpinan | Menetapkan hak akses, retensi, kebijakan nomor surat, penerimaan pilot, dan respons insiden data pribadi |
 
-Gunakan akun admin individual agar tindakan pengelolaan dapat ditelusuri. Jangan berbagi akun atau meninggalkan session admin terbuka ketika meja ditinggalkan.
+Gunakan akun individual agar pembuat surat dan tindakan pengelolaan dapat ditelusuri. Jangan berbagi akun atau meninggalkan sesi terbuka ketika meja ditinggalkan. Login diwajibkan secara default bila akun dikonfigurasi, untuk internet maupun LAN. Akses tanpa login (`ESURAT_REQUIRE_LOGIN=0`) hanya untuk demo sintetis atau lingkungan yang telah dilindungi identity proxy sekolah. Mode tanpa akun tetap dibatasi pada komputer lokal.
 
 ## Aturan keamanan data
 
@@ -69,7 +69,7 @@ Administrator atau petugas yang ditunjuk:
 Pengguna:
 
 - Buka alamat HTTPS resmi dari bookmark sekolah. Jangan mengabaikan peringatan sertifikat browser.
-- Tidak perlu login; halaman utama langsung membuka alur pembuatan surat.
+- Login menggunakan akun operator atau admin yang diberikan sekolah. Dashboard menyediakan tombol Buat surat dan menu Panduan TU.
 - Pastikan nama aplikasi, tanggal, dan koneksi sesuai; jangan lanjut melalui salinan situs atau alamat IP yang tidak diumumkan admin.
 
 ## Alur membuat surat
@@ -106,7 +106,7 @@ Jika ada dua nama mirip, gunakan nomor identitas sebagai pembeda. Bila orang tid
 - Isi keperluan secara spesifik, singkat, dan tanpa data pribadi yang tidak diperlukan.
 - Isi field khusus, misalnya jenis cuti, nama wali, kegiatan, penyelenggara, dan tempat.
 - Secara normal, **kosongkan nomor surat manual** agar server mengalokasikan nomor unik ketika dokumen dibuat.
-- Hanya role admin dapat memakai nomor manual setelah mendapat nomor dari pejabat pengelola. Pengguna umum tidak dapat melewati pembatasan ini.
+- Hanya role admin dapat memakai nomor manual setelah mendapat nomor dari pejabat pengelola. Operator tidak dapat melewati pembatasan ini.
 
 ### 4. Periksa Ringkasan Data
 
@@ -149,10 +149,10 @@ Setelah disetujui, simpan DOCX/PDF final sesuai tata nama, klasifikasi, retensi,
 
 ### 8. Riwayat, ekspor, dan pembatalan
 
-- Login sebagai admin, lalu pilih **Riwayat Surat** di panel admin; menu ini tidak tersedia untuk pengguna umum.
-- Gunakan pencarian serta filter status/jenis; navigasikan halaman bila hasil banyak.
+- Login sebagai operator atau admin, lalu pilih **Riwayat Surat** di ruang kerja TU.
+- Gunakan pencarian serta filter status, jenis, tanggal pembuatan, dan username operator; navigasikan halaman bila hasil banyak. Rentang tanggal mengikuti WIB dan mencakup seluruh tanggal akhir. Klik nomor surat untuk memeriksa detail dan jejak pembatalan.
 - **Ekspor hasil** mengekspor CSV sesuai filter aktif. Simpan CSV sebagai PII di lokasi terbatas dan hapus dari Downloads setelah dipindahkan.
-- Untuk membatalkan, buka tindakan **Batalkan**, isi alasan minimal lima karakter, lalu centang konfirmasi bahwa nomor tidak dapat dipakai kembali.
+- Pembatalan hanya untuk admin. Buka tindakan **Batalkan**, isi alasan minimal lima karakter, lalu centang konfirmasi bahwa nomor tidak dapat dipakai kembali.
 - Pembatalan tidak menghapus record dan tidak membuat nomor dapat digunakan ulang.
 - Untuk surat pengganti, batalkan sesuai SOP lalu buat surat baru. Catat hubungan nomor lama-baru pada register resmi karena kandidat belum memiliki relasi koreksi digital.
 

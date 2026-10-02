@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import hashlib
 import ipaddress
 import json
 import re
@@ -17,7 +18,7 @@ from .errors import DataValidationError
 from .utils import _normalize_text
 
 
-AUTH_ROLES = {"admin"}
+AUTH_ROLES = {"admin", "operator"}
 USERNAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,79}$")
 
 
@@ -68,6 +69,7 @@ def _load_auth_users(config: Mapping[str, Any]) -> dict[str, dict[str, str]]:
         )
 
     users: dict[str, dict[str, str]] = {}
+    seen_usernames: set[str] = set()
     if users_file:
         path = Path(users_file).expanduser()
         try:
@@ -94,13 +96,14 @@ def _load_auth_users(config: Mapping[str, Any]) -> dict[str, dict[str, str]]:
                 raise DataValidationError(f"Akun {username}: password_hash wajib diisi")
             if role not in AUTH_ROLES:
                 raise DataValidationError(
-                    f"Akun {username}: role harus admin"
+                    f"Akun {username}: role harus admin atau operator"
                 )
             if not isinstance(active, bool):
                 raise DataValidationError(f"Akun {username}: active harus boolean")
             key = username.casefold()
-            if key in users:
+            if key in seen_usernames:
                 raise DataValidationError(f"Username duplikat: {username}")
+            seen_usernames.add(key)
             if active:
                 users[key] = {
                     "username": username,
@@ -113,7 +116,7 @@ def _load_auth_users(config: Mapping[str, Any]) -> dict[str, dict[str, str]]:
     elif legacy_username:
         role = _normalize_text(config.get("AUTH_DEFAULT_ROLE", "admin")).casefold()
         if role not in AUTH_ROLES:
-            raise DataValidationError("AUTH_DEFAULT_ROLE harus admin")
+            raise DataValidationError("AUTH_DEFAULT_ROLE harus admin atau operator")
         users[legacy_username.casefold()] = {
             "username": legacy_username,
             "password_hash": legacy_hash,
@@ -134,7 +137,13 @@ def _password_matches(user: Mapping[str, str], password: str) -> bool:
     return hmac.compare_digest(configured.encode("utf-8"), password.encode("utf-8"))
 
 
+def _auth_version(user: Mapping[str, str]) -> str:
+    """Invalidate signed sessions when loaded account credentials change."""
+    material = "\0".join(user.get(key, "") for key in ("username", "role", "password_hash", "password"))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
 def _current_actor() -> tuple[str, str]:
-    if session.get("authenticated") and session.get("role") == "admin":
-        return str(session.get("username") or "admin"), "admin"
+    if session.get("authenticated") and session.get("role") in AUTH_ROLES:
+        return str(session.get("username") or "operator"), str(session["role"])
     return "public", "user"

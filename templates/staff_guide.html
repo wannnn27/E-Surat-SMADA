@@ -1,0 +1,28 @@
+{% extends "admin_base.html" %}
+{% block title %}Panduan TU{% endblock %}
+{% block eyebrow %}Bantuan pekerjaan harian{% endblock %}
+{% block heading %}Panduan TU{% endblock %}
+{% block description %}Langkah kerja untuk membuat, memeriksa, dan mencatat surat sekolah.{% endblock %}
+{% block content %}
+<section class="admin-panel tu-guide-panel">
+  <h2>Membuat surat</h2>
+  <ol>
+    <li>Buka aplikasi surat, lalu pilih jenis surat sesuai kebutuhan.</li>
+    <li>Cari dan pilih guru atau siswa dari data resmi. Periksa nama serta NIP, NIS, atau NISN sebelum melanjutkan.</li>
+    <li>Isi tanggal, kode arsip, keperluan, dan informasi tambahan yang diminta.</li>
+    <li>Periksa ringkasan, lalu unduh Word atau PDF. Nomor otomatis diberikan saat proses unduh.</li>
+    <li>Periksa dokumen hasil di Word atau pembaca PDF, termasuk kop, tabel, penandatangan, dan halaman lanjutan. Simpan file di arsip sekolah sebelum dicetak dan disahkan.</li>
+  </ol>
+  <h2>Mengecek riwayat dan membuat rekap</h2>
+  <p>Buka Riwayat Surat, gunakan tanggal pembuatan mulai dan sampai, jenis, status, atau username operator. Tanggal dihitung dalam WIB dan tanggal akhir termasuk dalam hasil. Klik nomor surat untuk melihat catatan administrasi. Ekspor hasil mengambil seluruh data yang sesuai filter, termasuk halaman berikutnya.</p>
+  <h2>Jika unduhan gagal atau koneksi terputus</h2>
+  <p>Periksa riwayat sebelum mengulang pekerjaan. Selama formulir belum berubah, unduh kembali dari ringkasan yang sama agar nomor sebelumnya digunakan. PDF yang gagal dapat dicoba dalam format Word. Jangan reset formulir atau membuat surat baru hanya karena file belum terlihat di folder unduhan.</p>
+  <p>Pengulangan juga memeriksa identitas, penandatangan, dan versi template. Jika data berubah atau permintaan berasal dari versi aplikasi lama, unduhan ditolak; hubungi admin untuk memeriksa nomor sebelumnya. Halaman riwayat dibuka di tab baru dari formulir agar isian tetap tersedia.</p>
+  <h2>Jika ada kesalahan setelah dokumen dibuat</h2>
+  <p>Sampaikan nomor surat dan alasan koreksi kepada admin. Admin dapat membatalkan surat melalui riwayat dengan alasan yang jelas. Nomor yang dibatalkan tetap tercatat dan tidak digunakan kembali. Pembuatan surat pengganti mengikuti SOP sekolah.</p>
+  <h2>Hak akses akun</h2>
+  <p>Operator dapat membuat surat, memeriksa data master dan riwayat, serta mengekspor rekap. Admin juga mengelola template, memakai nomor manual, dan membatalkan surat. Gunakan akun pribadi agar nama pembuat tercatat dengan benar. Sesi berakhir paling lambat {{ session_hours }} jam setelah login; keluar dari akun setelah selesai.</p>
+  <h2>Pembaruan data dan template</h2>
+  <p>Laporkan identitas yang tidak sesuai kepada admin dengan sumber resmi. Pembaruan data master dilakukan melalui import terverifikasi. Admin memperbarui template DOCX menggunakan placeholder yang didukung, lalu memeriksa hasil surat uji sebelum dipakai untuk pekerjaan nyata.</p>
+</section>
+{% endblock %}

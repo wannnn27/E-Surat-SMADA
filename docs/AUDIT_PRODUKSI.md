@@ -2,6 +2,10 @@
 
 Tanggal pembaruan: 9 September 2026
 
+> Dokumen ini mencatat keadaan pada 9 September. Untuk perubahan kode dan
+> keputusan fitur terbaru, baca [Audit sistem 2 Oktober 2026](AUDIT_SISTEM_2026-10-02.html).
+> Status deployment dan penanganan data historis tetap memerlukan verifikasi pemilik.
+
 Ruang lingkup: source code, konfigurasi, Git index/history, data master, SQLite,
 template DOCX, alur operator, autentikasi, backup, QA, dan deployment.
 

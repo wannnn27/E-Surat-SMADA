@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import hmac
 import io
 import logging
@@ -13,7 +14,7 @@ import sqlite3
 import threading
 import time
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Mapping, cast
 
@@ -26,6 +27,7 @@ from .config import (
     AUTO_NUMBER_PREVIEW,
     BASE_DIR,
     CUSTOM_NUMBER_RE,
+    DATE_RE,
     DATA_DIR,
     DATA_ROOT,
     DB_PATH,
@@ -71,11 +73,13 @@ from .pdf_rendering import render_pdf_from_docx
 from .registry import JENIS_SURAT
 from .rendering import _check_rendered_docx, _render_letter
 from .security import (
+    _auth_version,
     _csrf_token,
     _is_loopback_address,
     _is_loopback_bind,
     _load_auth_users,
     _password_matches,
+    USERNAME_RE,
 )
 from .template_management import validate_custom_template
 from .utils import _normalize_text, _now, _validate_safe_text, format_tanggal_indo
@@ -110,6 +114,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         AUTH_USERS_FILE=os.getenv("ESURAT_USERS_FILE", ""),
         AUTH_DEFAULT_ROLE=os.getenv("ESURAT_DEFAULT_ROLE", "admin"),
         AUTH_ENABLED=None,
+        REQUIRE_LOGIN=_env_bool("ESURAT_REQUIRE_LOGIN", True),
         BIND_HOST=os.getenv("ESURAT_HOST", "127.0.0.1"),
         BIND_PORT=_environment_integer("ESURAT_PORT", 5000),
         SERVER_THREADS=_environment_integer("ESURAT_THREADS", 4),
@@ -176,6 +181,12 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     app.extensions["template_hashes"] = dict(builtin_template_hashes)
     app.extensions["letter_registry"] = dict(JENIS_SURAT)
     cast(dict[str, Any], app.jinja_env.globals)["csrf_token"] = _csrf_token
+    cast(dict[str, Any], app.jinja_env.globals)["login_required"] = bool(
+        app.config["AUTH_ENABLED"] and app.config["REQUIRE_LOGIN"]
+    )
+    cast(dict[str, Any], app.jinja_env.globals)["session_hours"] = int(
+        app.permanent_session_lifetime.total_seconds() / 3600
+    )
     database_lock = threading.Lock()
     login_attempts: dict[str, deque[float]] = defaultdict(deque)
     login_attempts_lock = threading.Lock()
@@ -272,27 +283,56 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             if (
                 configured_user is None
                 or session.get("role") != configured_user.get("role")
+                or session.get("auth_version") != _auth_version(configured_user)
+                or not isinstance(session.get("login_started_at"), (int, float))
+                or time.time() - session.get("login_started_at", 0)
+                >= app.permanent_session_lifetime.total_seconds()
             ):
                 session.clear()
         if not app.config["AUTH_ENABLED"]:
             if not _is_loopback_address(request.remote_addr):
                 return _json_error("Akses tanpa autentikasi hanya diizinkan dari komputer lokal", 403)
-        admin_endpoints = {
+        staff_endpoints = {
             "admin_dashboard",
             "admin_history",
-            "admin_history_cancel",
+            "admin_history_detail",
             "admin_master_data",
+            "staff_guide",
+            "api_export_history",
+            "api_list_riwayat",
+        }
+        admin_endpoints = {
+            "admin_history_cancel",
             "admin_templates",
             "admin_template_delete",
             "admin_template_upload",
             "api_cancel_history",
-            "api_export_history",
-            "api_list_riwayat",
         }
-        if endpoint in admin_endpoints and session.get("role") != "admin":
+        authenticated = bool(session.get("authenticated"))
+        public_endpoints = {"login", "api_csrf", "static", "logout", "healthz"}
+        if (
+            app.config["AUTH_ENABLED"]
+            and app.config["REQUIRE_LOGIN"]
+            and not authenticated
+            and endpoint not in public_endpoints
+        ):
             if request.method == "GET" and not request.path.startswith("/api/"):
                 return redirect(url_for("login", next=request.full_path.rstrip("?")))
-            return _json_error("Akses admin diperlukan", 403, {"role": "admin diperlukan"})
+            return jsonify({
+                "error": "Sesi telah berakhir atau Anda belum masuk. Silakan login kembali.",
+                "code": "auth_required",
+                "login_url": url_for("login", next="/"),
+            }), 401
+        if endpoint in staff_endpoints and (
+            not authenticated or session.get("role") not in {"admin", "operator"}
+        ):
+            if request.method == "GET" and not request.path.startswith("/api/"):
+                return redirect(url_for("login", next=request.full_path.rstrip("?")))
+            return _json_error("Akses staf TU diperlukan", 403)
+        if endpoint in admin_endpoints and session.get("role") != "admin":
+            if not authenticated and request.method == "GET" and not request.path.startswith("/api/"):
+                return redirect(url_for("login", next=request.full_path.rstrip("?")))
+            return error_response("Akses admin diperlukan", 403, {"role": "admin diperlukan"})
 
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             supplied = (
@@ -302,8 +342,14 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 or request.form.get("csrf_token")
             )
             expected = session.get("csrf_token", "")
-            if not supplied or not expected or not hmac.compare_digest(supplied, expected):
+            if (not supplied or not expected or not isinstance(supplied, str)
+                or not isinstance(expected, str)
+                or not hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8"))):
                 return csrf_failure_response(endpoint)
+        if endpoint in public_endpoints:
+            if endpoint == "healthz":
+                ensure_database_initialized()
+            return None
         ensure_database_initialized()
         if endpoint != "static":
             refresh_custom_templates_if_changed()
@@ -323,8 +369,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; "
             "img-src 'self' data:; "
             "script-src 'self'; "
-            "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
-            "font-src 'self' https://cdnjs.cloudflare.com"
+            "style-src 'self' 'unsafe-inline'; "
+            "font-src 'self'"
         )
         if request.is_secure:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
@@ -332,28 +378,33 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
 
     @app.errorhandler(RequestValidationError)
     def handle_validation_error(exc: RequestValidationError):
-        return _json_error(exc.message, exc.status_code, exc.field_errors)
+        return error_response(exc.message, exc.status_code, exc.field_errors)
+
+    def error_response(message: str, status: int, field_errors=None):
+        if request.path.startswith("/api/") or request.path == "/generate" or request.is_json:
+            return _json_error(message, status, field_errors)
+        return render_template("error.html", message=message, status=status), status
 
     @app.errorhandler(413)
     def handle_too_large(_exc):
-        return _json_error("Ukuran request melebihi batas aplikasi", 413)
+        return error_response("Ukuran berkas melebihi batas aplikasi. Gunakan DOCX maksimal 4 MB.", 413)
 
     @app.errorhandler(sqlite3.Error)
     def handle_database_error(exc: Exception):
         app.logger.exception("Kesalahan database", exc_info=exc)
-        return _json_error("Database tidak dapat digunakan sementara", 503)
+        return error_response("Database belum dapat diakses. Coba lagi atau hubungi administrator.", 503)
 
     if POSTGRES_ERROR is not None:
         app.register_error_handler(POSTGRES_ERROR, handle_database_error)
 
     @app.errorhandler(HTTPException)
     def handle_http_error(exc: HTTPException):
-        return _json_error(exc.description or "Request gagal", exc.code or 500)
+        return error_response("Halaman tidak ditemukan" if exc.code == 404 else "Permintaan tidak dapat diproses", exc.code or 500)
 
     @app.errorhandler(Exception)
     def handle_unexpected_error(exc: Exception):
         app.logger.exception("Kesalahan aplikasi tidak terduga", exc_info=exc)
-        return _json_error("Terjadi kesalahan internal saat memproses surat", 500)
+        return error_response("Terjadi kesalahan internal. Silakan coba lagi atau hubungi administrator.", 500)
 
     @app.get("/")
     def index():
@@ -384,6 +435,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 "csrf_token": _csrf_token(),
                 "authenticated": bool(session.get("authenticated")),
                 "auth_enabled": bool(app.config["AUTH_ENABLED"]),
+                "login_required": bool(app.config["AUTH_ENABLED"] and app.config["REQUIRE_LOGIN"]),
+                "login_url": url_for("login", next="/"),
                 "role": session.get("role", "user") if session.get("authenticated") else "user",
             }
         )
@@ -409,7 +462,9 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 next_path=request.args.get("next", ""),
             )
 
-        data = request.get_json(silent=True) or request.form
+        data = request.get_json(silent=True) if request.is_json else request.form
+        if not isinstance(data, Mapping):
+            raise RequestValidationError("Isi permintaan harus berupa object JSON", status_code=400)
         username = _normalize_text(data.get("username", ""))
         password = str(data.get("password", ""))
         attempt_key = f"{request.remote_addr or 'unknown'}|{username[:80].casefold()}"
@@ -431,9 +486,14 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             while attempts and attempts[0] < cutoff:
                 attempts.popleft()
             if len(attempts) >= int(app.config["LOGIN_MAX_ATTEMPTS"]):
-                return _json_error(
-                    "Terlalu banyak percobaan login. Tunggu sebelum mencoba kembali.", 429
+                message = "Terlalu banyak percobaan login. Tunggu sebelum mencoba kembali."
+                response = (
+                    _json_error(message, 429)
+                    if request.is_json
+                    else (render_template("login.html", error=message, notice=None,
+                                          next_path=request.form.get("next", "")), 429)
                 )
+                return response
 
         user = (
             auth_users.get(username.casefold())
@@ -461,6 +521,8 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         session["authenticated"] = True
         session["username"] = user["username"]
         session["role"] = user["role"]
+        session["auth_version"] = _auth_version(user)
+        session["login_started_at"] = time.time()
         session["csrf_token"] = secrets.token_urlsafe(32)
         if request.is_json:
             return jsonify(
@@ -472,7 +534,10 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 }
             )
         next_path = request.form.get("next", "")
-        if not next_path.startswith("/") or next_path.startswith("//"):
+        if (
+            not next_path.startswith("/") or next_path.startswith("//")
+            or "\\" in next_path or any(ord(char) < 32 for char in next_path)
+        ):
             next_path = url_for("admin_dashboard")
         return redirect(next_path)
 
@@ -534,10 +599,12 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             ).fetchall()
             month_row = conn.execute(
                 _sql(
-                    f"SELECT COUNT(*) AS total FROM {history_table} WHERE created_at >= ?",
+                    f"SELECT COUNT(*) AS total FROM {history_table} WHERE "
+                    + ("created_at >= ? AND created_at < ?" if postgres else
+                       "datetime(created_at) >= datetime(?) AND datetime(created_at) < datetime(?)"),
                     postgres,
                 ),
-                (month_start.isoformat(),),
+                (month_start.isoformat(), (month_start.replace(day=28) + timedelta(days=4)).replace(day=1).isoformat()),
             ).fetchone()
             if month_row is None:
                 raise RuntimeError("Database tidak mengembalikan ringkasan surat bulan berjalan")
@@ -618,12 +685,35 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
 
     @app.get("/admin/master-data")
     def admin_master_data():
+        kind = _request_value(request.args, "kind", "guru") or "guru"
+        query = _request_value(request.args, "q")
+        if kind not in {"guru", "murid", "kode_arsip"}:
+            raise RequestValidationError("Kategori data master tidak valid")
+        if len(query) > MAX_QUERY_LENGTH:
+            raise RequestValidationError("Pencarian data master maksimal 100 karakter")
+        try:
+            page = max(1, int(request.args.get("page", "1")))
+        except ValueError:
+            page = 1
+        searchable = {
+            "guru": ("nama", "nip", "jabatan"),
+            "murid": ("nama", "nis", "nisn", "kelas"),
+            "kode_arsip": ("kode", "keterangan"),
+        }[kind]
+        matches = [item for item in state[kind] if not query or any(
+            query.casefold() in str(item.get(field, "")).casefold() for field in searchable
+        )]
+        pages = max(1, (len(matches) + 24) // 25)
+        page = min(page, pages)
         context = admin_shell_context("master")
         context.update(
             {
-                "guru_preview": state["guru"][:6],
-                "murid_preview": state["murid"][:6],
-                "archive_preview": state["kode_arsip"][:8],
+                "directory": {
+                    "kind": kind, "q": query, "page": page, "pages": pages,
+                    "total": len(matches), "items": matches[(page - 1) * 25:page * 25],
+                },
+                "directory_previous": url_for("admin_master_data", kind=kind, q=query, page=page-1) if page > 1 else "",
+                "directory_next": url_for("admin_master_data", kind=kind, q=query, page=page+1) if page < pages else "",
                 "kepsek": state["kepsek"],
                 "master_stats": {
                     "guru": len(state["guru"]),
@@ -635,6 +725,10 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             }
         )
         return render_template("admin_master.html", **context)
+
+    @app.get("/admin/guide")
+    def staff_guide():
+        return render_template("staff_guide.html", **admin_shell_context("guide"))
 
     @app.get("/admin/templates")
     def admin_templates():
@@ -686,13 +780,13 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
     @app.post("/admin/templates/<key>/delete")
     def admin_template_delete(key: str):
         if request.form.get("confirm") != "DELETE":
-            return _json_error("Konfirmasi penghapusan diperlukan", 422)
+            return error_response("Konfirmasi penonaktifan diperlukan", 422)
         info = letter_registry().get(key)
         if info is None or not info.get("is_custom"):
-            return _json_error("Template kustom tidak ditemukan", 404)
+            return error_response("Template kustom tidak ditemukan", 404)
         delete_custom_template(app.config["DATABASE"], key)
         refresh_custom_templates()
-        return redirect(url_for("admin_templates", success="Template berhasil dihapus"))
+        return redirect(url_for("admin_templates", success="Template berhasil dinonaktifkan"))
 
     @app.get("/healthz")
     def healthz():
@@ -783,6 +877,9 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         query = _request_value(request.args, "q").casefold()
         status = _request_value(request.args, "status").casefold()
         jenis = _request_value(request.args, "jenis")
+        operator = _request_value(request.args, "operator")
+        start_text = _request_value(request.args, "start")
+        end_text = _request_value(request.args, "end")
         if len(query) > MAX_QUERY_LENGTH:
             raise RequestValidationError(
                 "Kueri riwayat terlalu panjang", {"q": "maksimal 100 karakter"}
@@ -795,15 +892,30 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             raise RequestValidationError(
                 "Jenis surat riwayat tidak valid", {"jenis": "tidak dikenal"}
             )
+        if operator and not USERNAME_RE.fullmatch(operator):
+            raise RequestValidationError("Operator riwayat tidak valid", {"operator": "username tidak valid"})
+        dates: dict[str, date] = {}
+        for name, value in (("start", start_text), ("end", end_text)):
+            if value:
+                try:
+                    if not DATE_RE.fullmatch(value):
+                        raise ValueError("format")
+                    dates[name] = date.fromisoformat(value)
+                except ValueError as exc:
+                    raise RequestValidationError(
+                        "Tanggal filter tidak valid", {name: "gunakan tanggal YYYY-MM-DD yang valid"}
+                    ) from exc
+        if "start" in dates and "end" in dates and dates["start"] > dates["end"]:
+            raise RequestValidationError("Tanggal awal harus sebelum atau sama dengan tanggal akhir", {"end": "rentang terbalik"})
 
         clauses: list[str] = []
         params: list[Any] = []
         if query:
             clauses.append(
-                "(LOWER(nomor_surat) LIKE ? OR LOWER(nama_pemohon) LIKE ? "
-                "OR LOWER(id_pemohon) LIKE ? OR LOWER(keperluan) LIKE ?)"
+                "(LOWER(nomor_surat) LIKE ? ESCAPE '!' OR LOWER(nama_pemohon) LIKE ? ESCAPE '!' "
+                "OR LOWER(id_pemohon) LIKE ? ESCAPE '!' OR LOWER(keperluan) LIKE ? ESCAPE '!')"
             )
-            pattern = f"%{query}%"
+            pattern = "%" + query.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
             params.extend([pattern, pattern, pattern, pattern])
         if status:
             clauses.append("status = ?")
@@ -811,6 +923,21 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         if jenis:
             clauses.append("jenis_key = ?")
             params.append(jenis)
+        if operator:
+            clauses.append("created_by = ?")
+            params.append(operator)
+        postgres = _is_postgres(app.config["DATABASE"])
+        for name, comparison in (("start", ">="), ("end", "<")):
+            if name not in dates:
+                continue
+            boundary = datetime.combine(dates[name], datetime.min.time(), tzinfo=WIB)
+            if name == "end":
+                try:
+                    boundary += timedelta(days=1)
+                except OverflowError as exc:
+                    raise RequestValidationError("Tanggal akhir di luar jangkauan", {"end": "tanggal terlalu besar"}) from exc
+            clauses.append(f"created_at {comparison} ?" if postgres else f"datetime(created_at) {comparison} datetime(?)")
+            params.append(boundary.isoformat())
         where_sql = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         return where_sql, params
 
@@ -867,6 +994,9 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             "q": _request_value(request.args, "q"),
             "status": _request_value(request.args, "status").casefold(),
             "jenis": _request_value(request.args, "jenis"),
+            "operator": _request_value(request.args, "operator"),
+            "start": _request_value(request.args, "start"),
+            "end": _request_value(request.args, "end"),
         }
         filter_args: dict[str, Any] = {
             key: value for key, value in filters.items() if value
@@ -905,6 +1035,27 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
         )
         return render_template("admin_history.html", **context)
 
+    @app.get("/admin/history/<int:record_id>")
+    def admin_history_detail(record_id: int):
+        database = app.config["DATABASE"]
+        postgres = _is_postgres(database)
+        conn = _connect_db(database)
+        try:
+            row = conn.execute(_sql(
+                f"SELECT id, created_at, updated_at, jenis_surat, nomor_surat, nama_pemohon, "
+                f"id_pemohon, kategori, keperluan, status, created_by, created_by_role, "
+                f"cancelled_at, cancelled_by, cancel_reason FROM {_table('riwayat_surat', postgres)} WHERE id = ?",
+                postgres,
+            ), (record_id,)).fetchone()
+        finally:
+            conn.close()
+        if row is None:
+            return error_response("Riwayat surat tidak ditemukan", 404)
+        item = dict(row)
+        for name in ("created_at", "updated_at", "cancelled_at"):
+            item[name + "_display"] = format_admin_timestamp(item.get(name))
+        return render_template("admin_history_detail.html", item=item, **admin_shell_context("history"))
+
     @app.post("/admin/history/<int:record_id>/cancel")
     def admin_history_cancel(record_id: int):
         return_args: dict[str, Any] = {}
@@ -917,6 +1068,13 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
             return_args["status"] = return_status
         if return_type and TEMPLATE_KEY_RE.fullmatch(return_type):
             return_args["jenis"] = return_type
+        for name in ("start", "end"):
+            value = _normalize_text(request.form.get(name, ""))
+            if DATE_RE.fullmatch(value):
+                return_args[name] = value
+        operator = _normalize_text(request.form.get("operator", ""))
+        if USERNAME_RE.fullmatch(operator):
+            return_args["operator"] = operator
         try:
             page = max(1, int(request.form.get("page", "1")))
         except ValueError:
@@ -977,7 +1135,7 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
 
         def safe_csv_cell(value: Any) -> str:
             text_value = "" if value is None else str(value)
-            if text_value.startswith(("=", "+", "-", "@")):
+            if text_value.lstrip(" \t\r\n").startswith(("=", "+", "-", "@")) or text_value.startswith(("\t", "\r", "\n")):
                 return "'" + text_value
             return text_value
 
@@ -1027,7 +1185,9 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
 
     @app.post("/api/history/<int:record_id>/cancel")
     def api_cancel_history(record_id: int):
-        data = request.get_json(silent=True) or request.form
+        data = request.get_json(silent=True) if request.is_json else request.form
+        if not isinstance(data, Mapping):
+            raise RequestValidationError("Isi permintaan harus berupa object JSON", status_code=400)
         reason = _normalize_text(data.get("reason", ""))
         reason_error = _validate_safe_text(reason, max_length=300)
         if reason_error or len(reason) < 5:
@@ -1095,6 +1255,13 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 {"output_format": "pilih format docx atau pdf"},
             )
         validated = _validate_request(request.form, preview=False)
+        info = dict(validated["info"])
+        if not info.get("is_custom"):
+            template_bytes = (Path(app.config["TEMPLATE_DIR"]) / str(info["template"])).read_bytes()
+            if hashlib.sha256(template_bytes).hexdigest() != app.extensions["builtin_template_hashes"][validated["jenis"]]:
+                raise RequestValidationError("Template surat telah berubah di server. Hubungi admin untuk memeriksa dan memuat ulang template.", {"jenis_surat": "template bawaan berubah"}, 409)
+            info["template_blob"] = template_bytes
+        validated["info"] = info
         reservation = _reserve_letter(validated)
         validated["context"]["nomor_surat"] = reservation["number"]
         should_mark = reservation["action"] != "generated"
@@ -1115,8 +1282,9 @@ def create_app(config: Mapping[str, Any] | None = None) -> Flask:
                 return _json_error("PDF gagal dibuat; silakan coba unduh format Word", 500)
             return _json_error("Dokumen gagal dirender; tidak ada surat sukses yang dicatat", 500)
 
-        if should_mark:
-            _mark_letter_status(reservation["id"], "generated")
+        # Revalidate even for a repeated download: an admin may have cancelled
+        # the letter while its document was being rendered.
+        _mark_letter_status(reservation["id"], "generated")
 
         subject_name = (
             validated["person"]["nama"]

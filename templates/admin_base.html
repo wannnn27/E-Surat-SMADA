@@ -1,12 +1,14 @@
 <!DOCTYPE html>
-<html lang="id" data-theme="light" data-role="admin">
+<html lang="id" data-theme="light" data-role="{{ role }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}Admin{% endblock %} - E-Surat SMADA</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/fontawesome.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/solid.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/regular.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="admin-page">
@@ -16,7 +18,7 @@
         <img src="{{ url_for('static', filename='smada.png') }}" alt="Logo SMADA">
         <span>
           <strong>E-SURAT SMADA</strong>
-          <small>Panel Administrator</small>
+          <small>{{ 'Panel Administrator' if role == 'admin' else 'Ruang Kerja TU' }}</small>
         </span>
       </a>
 
@@ -28,12 +30,17 @@
         <a class="admin-nav-item{% if active_page == 'history' %} active{% endif %}" href="{{ url_for('admin_history') }}"{% if active_page == 'history' %} aria-current="page"{% endif %}>
           <i class="fa-solid fa-clock-rotate-left"></i><span>Riwayat Surat</span>
         </a>
+        {% if role == 'admin' %}
         <a class="admin-nav-item{% if active_page == 'templates' %} active{% endif %}" href="{{ url_for('admin_templates') }}"{% if active_page == 'templates' %} aria-current="page"{% endif %}>
           <i class="fa-solid fa-file-word"></i><span>Template Surat</span>
           <span class="admin-nav-count">{{ total_template_count }}</span>
         </a>
+        {% endif %}
         <a class="admin-nav-item{% if active_page == 'master' %} active{% endif %}" href="{{ url_for('admin_master_data') }}"{% if active_page == 'master' %} aria-current="page"{% endif %}>
           <i class="fa-solid fa-database"></i><span>Data Master</span>
+        </a>
+        <a class="admin-nav-item{% if active_page == 'guide' %} active{% endif %}" href="{{ url_for('staff_guide') }}"{% if active_page == 'guide' %} aria-current="page"{% endif %}>
+          <i class="fa-solid fa-circle-question"></i><span>Panduan TU</span>
         </a>
 
         <p class="admin-nav-label">Pindah workspace</p>
@@ -57,7 +64,7 @@
           <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="next" value="login">
           <button class="admin-logout" type="submit">
-            <i class="fa-solid fa-right-from-bracket"></i> Keluar dari admin
+            <i class="fa-solid fa-right-from-bracket"></i> Keluar dari akun
           </button>
         </form>
       </div>

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Permintaan belum berhasil - E-Surat SMADA</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="login-page">
+  <main class="tu-error-page">
+    <p class="admin-eyebrow">E-Surat SMADA · {{ status }}</p>
+    <h1>Permintaan belum berhasil</h1>
+    <p role="alert">{{ message }}</p>
+    <p>Periksa kembali tindakan Anda. Jika masalah berulang, sampaikan halaman dan waktu kejadian kepada administrator TU.</p>
+    <a class="admin-btn admin-btn-primary" href="{{ url_for('index') }}">Kembali ke aplikasi</a>
+    {% if session.get('authenticated') %}<a class="admin-btn admin-btn-secondary" href="{{ url_for('admin_history') }}">Periksa riwayat surat</a>{% endif %}
+  </main>
+</body>
+</html>

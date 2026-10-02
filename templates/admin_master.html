@@ -38,59 +38,30 @@
     </div>
   </section>
 
-  <div class="admin-master-detail-grid">
-    <section class="admin-panel" id="guru-staf">
-      <div class="admin-panel-heading">
-        <div><span class="admin-section-kicker">Pratinjau</span><h2>Guru &amp; staf</h2></div>
-        <a class="admin-text-link" href="{{ url_for('index', panel='guru') }}">Buka direktori lengkap <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-      </div>
-      <div class="admin-table-wrap">
-        <table class="admin-table admin-master-table">
-          <thead><tr><th>Nama</th><th>NIP</th><th>Status</th></tr></thead>
-          <tbody>
-            {% for item in guru_preview %}
-              <tr>
-                <td><strong>{{ item.nama }}</strong><small>{{ item.jabatan or '-' }}</small></td>
-                <td class="admin-table-muted">{{ item.nip }}</td>
-                <td><span class="admin-status status-success">{{ item.kedudukan or 'Aktif' }}</span></td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="admin-panel" id="siswa">
-      <div class="admin-panel-heading">
-        <div><span class="admin-section-kicker">Pratinjau</span><h2>Siswa</h2></div>
-        <a class="admin-text-link" href="{{ url_for('index', panel='murid') }}">Buka direktori lengkap <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-      </div>
-      <div class="admin-table-wrap">
-        <table class="admin-table admin-master-table">
-          <thead><tr><th>Nama</th><th>NIS / NISN</th><th>Kelas</th></tr></thead>
-          <tbody>
-            {% for item in murid_preview %}
-              <tr>
-                <td><strong>{{ item.nama }}</strong></td>
-                <td><span>{{ item.nis }}</span><small>{{ item.nisn }}</small></td>
-                <td><span class="admin-status status-neutral">{{ item.kelas or '-' }}</span></td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </div>
-
-  <section class="admin-panel" id="kode-arsip">
-    <div class="admin-panel-heading">
-      <div><span class="admin-section-kicker">Klasifikasi</span><h2>Kode arsip utama</h2></div>
-      <a class="admin-text-link" href="{{ url_for('index', panel='kode') }}">Cari di aplikasi <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-    </div>
-    <div class="admin-archive-grid">
-      {% for item in archive_preview %}
-        <article><strong>{{ item.kode }}</strong><span>{{ item.keterangan }}</span></article>
-      {% endfor %}
-    </div>
+  <section class="admin-panel" id="direktori">
+    <div class="admin-panel-heading"><div><h2>Direktori data resmi</h2><p>Cari nama, identitas, kelas, jabatan, atau kode arsip.</p></div></div>
+    <form class="admin-history-filters tu-directory-filters" method="get">
+      <label><span>Kategori</span><select name="kind">
+        <option value="guru"{% if directory.kind == 'guru' %} selected{% endif %}>Guru &amp; staf</option>
+        <option value="murid"{% if directory.kind == 'murid' %} selected{% endif %}>Siswa</option>
+        <option value="kode_arsip"{% if directory.kind == 'kode_arsip' %} selected{% endif %}>Kode arsip</option>
+      </select></label>
+      <label><span>Kata kunci</span><input type="search" name="q" maxlength="100" value="{{ directory.q }}" placeholder="Nama, identitas, atau kelas"></label>
+      <button class="admin-btn admin-btn-primary" type="submit">Cari data</button>
+    </form>
+    <p>{{ directory.total }} data ditemukan · Halaman {{ directory.page }} dari {{ directory.pages }}</p>
+    <div class="admin-table-wrap"><table class="admin-table">
+      <thead><tr><th>{{ 'Kode' if directory.kind == 'kode_arsip' else 'Nama' }}</th><th>{{ 'Keterangan' if directory.kind == 'kode_arsip' else 'Identitas' }}</th>{% if directory.kind != 'kode_arsip' %}<th>{{ 'Kelas' if directory.kind == 'murid' else 'Jabatan' }}</th>{% endif %}</tr></thead>
+      <tbody>{% for item in directory['items'] %}<tr>
+        <td><strong>{{ item.kode if directory.kind == 'kode_arsip' else item.nama }}</strong></td>
+        <td>{% if directory.kind == 'kode_arsip' %}{{ item.keterangan }}{% elif directory.kind == 'guru' %}{{ item.nip }}{% else %}NIS {{ item.nis }}<small>NISN {{ item.nisn }}</small>{% endif %}</td>
+        {% if directory.kind != 'kode_arsip' %}<td>{{ item.kelas if directory.kind == 'murid' else item.jabatan }}</td>{% endif %}
+      </tr>{% else %}<tr><td colspan="3">Tidak ada data yang cocok. Coba kata kunci lain.</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <nav class="admin-pagination" aria-label="Halaman data master">
+      {% if directory_previous %}<a class="admin-btn admin-btn-secondary" href="{{ directory_previous }}">Sebelumnya</a>{% endif %}
+      {% if directory_next %}<a class="admin-btn admin-btn-secondary" href="{{ directory_next }}">Berikutnya</a>{% endif %}
+    </nav>
   </section>
+
 {% endblock %}

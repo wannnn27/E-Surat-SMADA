@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 from typing import Any, Mapping
 
 from docxtpl import DocxTemplate
+from defusedxml import ElementTree  # type: ignore[untyped-import]
 
 from .config import MAX_TEMPLATE_BYTES, TEMPLATE_KEY_RE
 from .errors import RequestValidationError
@@ -109,13 +111,21 @@ def validate_custom_template(
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
             names = archive.namelist()
-            if "word/document.xml" not in names or archive.testzip() is not None:
-                raise ValueError("struktur DOCX tidak lengkap")
             if len(names) > 1000 or sum(item.file_size for item in archive.infolist()) > 20 * 1024 * 1024:
                 raise ValueError("isi DOCX terlalu besar")
+            if "word/document.xml" not in names or len(names) != len(set(names)):
+                raise ValueError("struktur DOCX tidak lengkap atau entry duplikat")
+            if any(item.flag_bits & 1 for item in archive.infolist()):
+                raise ValueError("DOCX terenkripsi tidak didukung")
+            if any("vbaproject" in name.casefold() or name.casefold().startswith(("word/embeddings/", "word/activex/")) for name in names):
+                raise ValueError("macro atau objek aktif tidak diizinkan")
+            if archive.testzip() is not None:
+                raise ValueError("arsip DOCX rusak")
             for name in names:
-                if name.endswith(".rels") and b'TargetMode="External"' in archive.read(name):
-                    raise ValueError("tautan eksternal tidak diizinkan")
+                if name.endswith(".rels"):
+                    relationships = ElementTree.fromstring(archive.read(name))
+                    if any(item.get("TargetMode", "").casefold() == "external" for item in relationships):
+                        raise ValueError("tautan eksternal tidak diizinkan")
         template = DocxTemplate(io.BytesIO(content))
         variables = set(template.get_undeclared_template_variables())
     except (OSError, ValueError, zipfile.BadZipFile) as exc:
@@ -147,6 +157,8 @@ def validate_custom_template(
         )
 
     custom_names = sorted(variables - SYSTEM_CONTEXT_VARIABLES)
+    if len(custom_names) > 30 or any(not re.fullmatch(r"[a-z][a-z0-9_]{0,49}", name) for name in custom_names):
+        raise RequestValidationError("Template belum valid", {"template_file": "maksimal 30 field tambahan dengan nama huruf kecil, angka, dan underscore (maksimal 50 karakter)"}, 422)
     if signer == "wali" and "nama_wali" not in custom_names:
         raise RequestValidationError(
             "Template belum valid",

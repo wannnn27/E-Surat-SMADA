@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>E-Surat SMADA - Elektronik Persuratan SMAN 2 Wonosari</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/fontawesome.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/solid.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/regular.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -21,13 +23,13 @@
           </div>
           <!-- Mobile Header Controls: reset button (only visible on mobile/tablet) -->
           <div class="mobile-header-controls">
-            {% if role == 'admin' %}
+            {% if role in ['admin', 'operator'] %}
               <span class="mobile-account-label" title="Akun aktif">{{ username }}</span>
             {% endif %}
             <button type="button" class="reset-link-btn mobile-reset-btn" id="mobileResetBtn" title="Reset Form" style="font-size: 13px; padding: 4px 6px; display: flex; align-items: center; gap: 6px;">
               <i class="fa-solid fa-arrow-rotate-left"></i> Reset
             </button>
-            {% if role == 'admin' %}
+            {% if role in ['admin', 'operator'] %}
               <form class="logout-form" method="post" action="{{ url_for('logout') }}">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="reset-link-btn mobile-reset-btn" title="Keluar dari akun {{ username }}">
@@ -49,14 +51,14 @@
             <i class="fa-solid fa-user-graduate"></i> Siswa / Murid
           </button>
           <button type="button" class="nav-item" data-nav-action="templates">
-            <i class="fa-solid fa-file-word"></i> Template (.docx)
+            <i class="fa-solid fa-file-word"></i> Jenis Surat
           </button>
-          {% if role == 'admin' %}
-            <button type="button" class="nav-item" data-nav-action="riwayat">
+          {% if role in ['admin', 'operator'] %}
+            <a class="nav-item" href="{{ url_for('admin_history') }}" target="_blank" rel="noopener">
               <i class="fa-solid fa-clock-rotate-left"></i> Riwayat Surat
-            </button>
+            </a>
             <a class="nav-item" href="{{ url_for('admin_dashboard') }}">
-              <i class="fa-solid fa-screwdriver-wrench"></i> Kelola Admin
+              <i class="fa-solid fa-screwdriver-wrench"></i> Ruang Kerja TU
             </a>
           {% endif %}
           <button type="button" class="nav-item" data-nav-action="arsip">
@@ -69,7 +71,7 @@
         <button type="button" class="reset-link-btn" id="sidebarResetBtn">
           <i class="fa-solid fa-arrow-rotate-left"></i> Reset Form
         </button>
-        {% if role == 'admin' %}
+        {% if role in ['admin', 'operator'] %}
           <form class="logout-form" method="post" action="{{ url_for('logout') }}">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="reset-link-btn" title="Keluar dari akun {{ username }}">
@@ -93,16 +95,16 @@
           </span>
         </div>
         <div class="workspace-topbar-actions">
-          {% if role == 'admin' %}
+          {% if role in ['admin', 'operator'] %}
             <span class="current-account-badge" title="Akun dan role aktif">
               <i class="fa-solid fa-user-shield"></i> {{ username }} · {{ role | upper }}
             </span>
             <a class="btn-header-outline btn-admin-access" href="{{ url_for('admin_dashboard') }}">
-              <i class="fa-solid fa-screwdriver-wrench"></i> Panel Admin
+              <i class="fa-solid fa-screwdriver-wrench"></i> Ruang Kerja TU
             </a>
           {% elif auth_enabled %}
             <a class="btn-header-outline btn-admin-access" href="{{ url_for('login', next='/admin') }}">
-              <i class="fa-solid fa-lock"></i> Login Admin
+              <i class="fa-solid fa-lock"></i> Login Staf TU
             </a>
           {% endif %}
           <button type="button" class="btn-header-outline" id="helpBtn">
@@ -453,43 +455,6 @@
     </div>
   </div>
 
-  <!-- MODAL RIWAYAT SURAT LOG -->
-  <div id="modalRiwayat" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalRiwayatTitle" hidden>
-    <div class="modal-content" style="max-width: 860px;" tabindex="-1">
-      <div class="modal-header">
-        <h3 id="modalRiwayatTitle" style="font-size: 15px; font-weight: 700;"><i class="fa-solid fa-clock-rotate-left"></i> Riwayat Log Surat Terbuat (Database Tata Usaha)</h3>
-        <button type="button" class="modal-close-btn" id="closeRiwayatModalBtn" aria-label="Tutup riwayat surat">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="history-filters">
-          <label class="sr-only" for="historySearchInput">Cari riwayat surat</label>
-          <input type="search" id="historySearchInput" class="form-control" maxlength="100" placeholder="Cari nomor, nama, identitas, atau keperluan...">
-          <label class="sr-only" for="historyStatusFilter">Filter status riwayat</label>
-          <select id="historyStatusFilter" class="form-control">
-            <option value="">Semua status</option>
-            <option value="generated">Terbuat</option>
-            <option value="failed">Gagal</option>
-            <option value="rendering">Diproses</option>
-            <option value="cancelled">Dibatalkan</option>
-          </select>
-          <label class="sr-only" for="historyTypeFilter">Filter jenis surat</label>
-          <select id="historyTypeFilter" class="form-control">
-            <option value="">Semua jenis surat</option>
-            {% for key, info in jenis_surat.items() %}
-              <option value="{{ key }}">{{ info.label }}</option>
-            {% endfor %}
-          </select>
-          <button type="button" class="btn-bottom-navy" id="historyRefreshBtn">Terapkan</button>
-          <button type="button" class="btn-bottom-cancel" id="historyExportBtn">Ekspor CSV</button>
-        </div>
-        <div id="riwayatModalStatus" class="inline-status" role="status" aria-live="polite"></div>
-        <div id="riwayatModalList" style="display: flex; flex-direction: column; gap: 10px; max-height: 460px; overflow-y: auto;">
-          <!-- Populated by JS -->
-        </div>
-        <div id="riwayatPagination" class="history-pagination" aria-label="Paginasi riwayat"></div>
-      </div>
-    </div>
-  </div>
 
   <!-- Ringkasan data sebelum dokumen dibuat -->
   <div id="previewModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="summaryModalTitle" aria-describedby="summaryModalDescription" hidden>
@@ -502,6 +467,7 @@
         <p id="summaryModalDescription" class="summary-note">
           Ringkasan ini menampilkan data yang akan dimasukkan ke template, bukan tampilan halaman dokumen final. Periksa nama, nomor identitas, tanggal, dan keperluan sebelum mengunduh.
         </p>
+        <p class="summary-note">Periksa tata letak PDF sebelum dicetak. Untuk template dengan format kompleks, gunakan Word dan ekspor ke PDF setelah diperiksa.</p>
         <div class="modal-paper summary-card">
           <dl id="summaryList" class="summary-list"></dl>
         </div>

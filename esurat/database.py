@@ -627,7 +627,14 @@ def delete_custom_template(database: Path | str, key: str) -> bool:
     conn = _connect_db(database)
     try:
         _begin_write(conn, postgres)
-        cursor = conn.execute(_sql(f"DELETE FROM {table} WHERE key = ?", postgres), (key,))
+        # Keep the source template for administrative traceability while hiding
+        # it from the catalogue. This is not a versioned document archive.
+        active = "TRUE" if postgres else "1"
+        inactive = "FALSE" if postgres else "0"
+        cursor = conn.execute(
+            _sql(f"UPDATE {table} SET active = {inactive}, updated_at = ? WHERE key = ? AND active = {active}", postgres),
+            (_now().isoformat(timespec="seconds"), key),
+        )
         deleted = cursor.rowcount > 0
         conn.commit()
         return deleted
@@ -654,26 +661,50 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
     person = validated["person"]
     people = list(validated.get("people") or ([] if person is None else [person]))
     request_id = str(normalized["request_id"])
-    payload_hash = _payload_hash(normalized)
+    # Include server-controlled identities and signer details. Form identifiers
+    # alone cannot detect a changed master record on a repeated download.
+    payload_hash = "v2:" + _payload_hash({
+        "form": {key: value for key, value in normalized.items() if key != "request_id"},
+        "context": validated["context"],
+    })
     now_iso = _now().isoformat(timespec="seconds")
     custom_number = str(normalized["nomor_surat_custom"])
     kode = str(normalized["kode_arsip"])
     year = _parse_iso_date(str(normalized["tanggal_surat"])).year
-    template_hash = current_app.extensions["template_hashes"][validated["jenis"]]
+    template_hash = (
+        hashlib.sha256(bytes(info["template_blob"])).hexdigest()
+        if info.get("template_blob")
+        else current_app.extensions["template_hashes"][validated["jenis"]]
+    )
     actor, actor_role = _current_actor()
 
     conn = _connect_db(db_path)
     try:
         _begin_write(conn, postgres)
+        if postgres:
+            lock_key = int.from_bytes(hashlib.sha256(request_id.encode()).digest()[:8], "big", signed=True)
+            conn.execute("SELECT pg_advisory_xact_lock(%s)", (lock_key,))
         existing = conn.execute(
-            _sql(f"SELECT * FROM {history_table} WHERE request_id = ?", postgres),
+            _sql(f"SELECT * FROM {history_table} WHERE request_id = ?" + (" FOR UPDATE" if postgres else ""), postgres),
             (request_id,),
         ).fetchone()
         if existing is not None:
+            if existing["created_by"] != actor or existing["created_by_role"] != actor_role:
+                raise RequestValidationError(
+                    "Permintaan ini milik operator lain. Mulai surat baru dengan akun Anda.",
+                    {"request_id": "permintaan milik operator lain"},
+                    403,
+                )
             if existing["payload_hash"] != payload_hash:
                 raise RequestValidationError(
-                    "request_id sudah dipakai untuk payload berbeda",
-                    {"request_id": "gunakan request_id baru setelah mengubah form"},
+                    "Data surat atau data master telah berubah, atau permintaan berasal dari versi lama. Periksa surat sebelumnya sebelum membuat permintaan baru.",
+                    {"request_id": "isi surat tidak lagi sama"},
+                    409,
+                )
+            if existing["hash"] != template_hash:
+                raise RequestValidationError(
+                    "Template surat telah berubah sejak permintaan pertama. Hubungi admin untuk memeriksa surat sebelumnya.",
+                    {"request_id": "versi template berubah"},
                     409,
                 )
             status = existing["status"] or "legacy"
@@ -854,8 +885,10 @@ def _reserve_letter(validated: Mapping[str, Any]) -> dict[str, Any]:
             "payload_hash": payload_hash,
             "action": "new",
         }
-    except Exception:
+    except Exception as exc:
         conn.rollback()
+        if isinstance(exc, sqlite3.IntegrityError) or (postgres and getattr(exc, "sqlstate", None) == "23505"):
+            raise RequestValidationError("Nomor surat atau permintaan sudah digunakan. Periksa riwayat sebelum mengulang.", {"request_id": "konflik reservasi nomor"}, 409) from exc
         raise
     finally:
         conn.close()
@@ -870,13 +903,16 @@ def _mark_letter_status(record_id: int, status: str, error: str | None = None) -
     conn = _connect_db(database)
     try:
         _begin_write(conn, postgres)
-        conn.execute(
+        cursor = conn.execute(
             _sql(
-                f"UPDATE {history_table} SET status = ?, error = ?, updated_at = ? WHERE id = ?",
+                f"UPDATE {history_table} SET status = ?, error = ?, updated_at = ? WHERE id = ? "
+                + ("AND status IN ('rendering', 'generated')" if status == "generated" else "AND status = 'rendering'"),
                 postgres,
             ),
             (status, error[:1000] if error else None, _now().isoformat(timespec="seconds"), record_id),
         )
+        if status == "generated" and cursor.rowcount != 1:
+            raise RequestValidationError("Surat tidak dapat diunduh karena statusnya telah berubah. Periksa riwayat surat.", {"status": "surat tidak aktif"}, 409)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -901,7 +937,7 @@ def _cancel_letter(record_id: int, reason: str) -> dict[str, Any]:
     try:
         _begin_write(conn, postgres)
         row = conn.execute(
-            _sql(f"SELECT * FROM {history_table} WHERE id = ?", postgres),
+            _sql(f"SELECT * FROM {history_table} WHERE id = ?" + (" FOR UPDATE" if postgres else ""), postgres),
             (record_id,),
         ).fetchone()
         if row is None:

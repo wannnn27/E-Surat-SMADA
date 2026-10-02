@@ -1,8 +1,8 @@
 {% extends "admin_base.html" %}
 
-{% block title %}Dashboard Admin{% endblock %}
+{% block title %}{{ 'Dashboard Admin' if role == 'admin' else 'Dashboard TU' }}{% endblock %}
 {% block eyebrow %}Ringkasan operasional{% endblock %}
-{% block heading %}Dashboard Admin{% endblock %}
+{% block heading %}{{ 'Dashboard Admin' if role == 'admin' else 'Dashboard TU' }}{% endblock %}
 {% block description %}Pantau surat, data master, dan kesiapan sistem pada {{ today_label }}.{% endblock %}
 
 {% block content %}
@@ -12,7 +12,7 @@
       <div>
         <span class="admin-metric-label">Total surat</span>
         <strong>{{ overview.total }}</strong>
-        <small>{{ overview.status.generated }} surat berhasil terbit</small>
+        <small>{{ overview.status.generated }} dokumen berhasil dibuat</small>
       </div>
     </article>
     <article class="admin-metric-card metric-success">
@@ -66,7 +66,7 @@
               {% for item in overview.recent %}
                 <tr>
                   <td>
-                    <strong>{{ item.nomor_surat or '-' }}</strong>
+                    <a class="admin-text-link" href="{{ url_for('admin_history_detail', record_id=item.id) }}"><strong>{{ item.nomor_surat or '-' }}</strong></a>
                     <small>{{ item.jenis_surat or 'Jenis surat tidak tercatat' }}</small>
                   </td>
                   <td>
@@ -76,7 +76,7 @@
                   <td class="admin-table-muted">{{ item.created_at_display }}</td>
                   <td>
                     {% if item.status == 'generated' %}
-                      <span class="admin-status status-success">Terbit</span>
+                      <span class="admin-status status-success">Dokumen dibuat</span>
                     {% elif item.status == 'cancelled' %}
                       <span class="admin-status status-danger">Dibatalkan</span>
                     {% elif item.status == 'rendering' %}
@@ -105,25 +105,26 @@
         <div class="admin-panel-heading compact">
           <div>
             <span class="admin-section-kicker">Akses cepat</span>
-            <h2>Tindakan admin</h2>
+            <h2>Tindakan TU</h2>
           </div>
         </div>
         <div class="admin-quick-actions">
           <a href="{{ url_for('index') }}">
             <span class="quick-action-icon quick-blue"><i class="fa-solid fa-file-circle-plus"></i></span>
-            <span><strong>Buat surat baru</strong><small>Nomor otomatis atau manual</small></span>
+            <span><strong>Buat surat baru</strong><small>{{ 'Nomor otomatis atau manual' if role == 'admin' else 'Nomor otomatis' }}</small></span>
             <i class="fa-solid fa-chevron-right"></i>
           </a>
           <a href="{{ url_for('admin_history') }}">
             <span class="quick-action-icon quick-purple"><i class="fa-solid fa-clock-rotate-left"></i></span>
-            <span><strong>Periksa riwayat</strong><small>Cari, ekspor, atau batalkan</small></span>
+            <span><strong>Periksa riwayat</strong><small>{{ 'Cari, ekspor, atau batalkan' if role == 'admin' else 'Cari dan ekspor rekap' }}</small></span>
             <i class="fa-solid fa-chevron-right"></i>
           </a>
-          <a href="{{ url_for('admin_templates') }}">
+          {% if role == 'admin' %}<a href="{{ url_for('admin_templates') }}">
             <span class="quick-action-icon quick-green"><i class="fa-solid fa-file-word"></i></span>
             <span><strong>Kelola template</strong><small>{{ total_template_count }} template aktif</small></span>
             <i class="fa-solid fa-chevron-right"></i>
           </a>
+          {% endif %}
           <a href="{{ url_for('admin_master_data') }}">
             <span class="quick-action-icon quick-orange"><i class="fa-solid fa-database"></i></span>
             <span><strong>Periksa data master</strong><small>Guru, siswa, dan kode arsip</small></span>
@@ -143,7 +144,8 @@
         <dl class="admin-system-list">
           <div><dt>Database</dt><dd>{{ database_label }}</dd></div>
           <div><dt>Autentikasi</dt><dd>{{ auth_source }}</dd></div>
-          <div><dt>Akun aktif</dt><dd>{{ account_count }} admin</dd></div>
+          <div><dt>Akun aktif</dt><dd>{{ account_count }} staf</dd></div>
+          <div><dt>Akses pengguna</dt><dd>{{ 'Wajib login' if login_required else 'Akses tanpa login aktif' }}</dd></div>
           <div><dt>Template</dt><dd>{{ builtin_template_count }} bawaan + {{ custom_template_count }} tambahan</dd></div>
         </dl>
       </section>
@@ -171,7 +173,7 @@
         <span><i class="fa-solid fa-bookmark"></i></span>
         <div><strong>{{ master_stats.kode_arsip }}</strong><small>Kode arsip</small></div>
       </a>
-      <a href="{{ url_for('admin_templates') }}">
+      <a href="{{ url_for('admin_templates') if role == 'admin' else url_for('index', panel='templates') }}">
         <span><i class="fa-solid fa-layer-group"></i></span>
         <div><strong>{{ total_template_count }}</strong><small>Template aktif</small></div>
       </a>

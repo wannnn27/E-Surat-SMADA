@@ -299,7 +299,8 @@ class BackendIntegrationTests(unittest.TestCase):
                 self.assertEqual(row["status"], "generated")
                 self.assertEqual(row["nomor_surat"], number)
                 self.assertEqual(len(row["hash"]), 64)
-                self.assertEqual(len(row["payload_hash"]), 64)
+                self.assertTrue(row["payload_hash"].startswith("v2:"))
+                self.assertEqual(len(row["payload_hash"]), 67)
                 self.assertIsNone(row["error"])
         self.assertEqual(len(generated_numbers), len(esurat.JENIS_SURAT))
         self.assertEqual(len(set(generated_numbers)), len(esurat.JENIS_SURAT))
@@ -742,6 +743,7 @@ class AuthenticationTests(unittest.TestCase):
                 "SECRET_KEY": "auth-test-secret",
                 "AUTH_ENABLED": True,
                 "AUTH_USERNAME": "operator-tu",
+                "REQUIRE_LOGIN": False,
                 "AUTH_PASSWORD": "password-pengujian",
                 "AUTH_PASSWORD_HASH": "",
                 "BIND_HOST": "127.0.0.1",
@@ -765,7 +767,7 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual(browser.status_code, 200)
         browser_html = browser.get_data(as_text=True)
         self.assertIn('class="workspace-topbar"', browser_html)
-        self.assertIn("Login Admin", browser_html)
+        self.assertIn("Login Staf TU", browser_html)
         self.assertIn("static/session.js", browser_html)
 
         api = self.client.get("/api/list/guru")
@@ -997,6 +999,7 @@ class PublicAdminWorkflowTests(unittest.TestCase):
                 "INIT_DB_ON_CREATE": True,
                 "SECRET_KEY": "multi-user-test-secret",
                 "AUTH_USERS_FILE": str(cls.users_file),
+                "REQUIRE_LOGIN": False,
                 "AUTH_USERNAME": "",
                 "AUTH_PASSWORD": "",
                 "AUTH_PASSWORD_HASH": "",
@@ -1340,6 +1343,7 @@ class PublicAdminWorkflowTests(unittest.TestCase):
                 "INIT_DB_ON_CREATE": True,
                 "SECRET_KEY": "second-instance-secret",
                 "AUTH_USERS_FILE": str(self.users_file),
+                "REQUIRE_LOGIN": False,
                 "AUTH_USERNAME": "",
                 "AUTH_PASSWORD": "",
                 "AUTH_PASSWORD_HASH": "",

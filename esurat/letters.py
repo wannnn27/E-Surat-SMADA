@@ -270,8 +270,8 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
 
     if field_errors:
         raise RequestValidationError("Data surat belum valid", field_errors, 422)
-    if mode != "none":
-        assert person is not None
+    if mode != "none" and person is None:
+        raise RequestValidationError("Data personel tidak tersedia", {"id_value": "pilih personel resmi"}, 422)
 
     context: dict[str, Any] = dict(person or {})
     # Menjamin template legacy tidak mendapat Undefined tanpa menyamarkan field form wajib.
@@ -310,7 +310,8 @@ def _validate_request(form_data: Mapping[str, Any], *, preview: bool) -> dict[st
 
     signer_kind = str(info["signer"])
     if signer_kind == "pemohon":
-        assert person is not None
+        if person is None:
+            raise RequestValidationError("Penandatangan pemohon memerlukan personel", {"id_value": "pilih personel resmi"}, 422)
         signer = {
             "nama": person["nama"],
             "nip": person.get("nip", ""),

@@ -15,7 +15,7 @@ dibatalkan tanpa memakai ulang nomor, serta diekspor ke CSV.
 
 ## Cakupan fitur
 
-Tujuh template bawaan telah menjadi template dinamis; administrator juga mendapat
+Tiga belas template bawaan telah menjadi template dinamis; administrator juga mendapat
 dashboard operasional di `/admin` dan dapat menambahkan template DOCX sendiri dari
 halaman `/admin/templates`:
 
@@ -28,6 +28,9 @@ halaman `/admin/templates`:
 | Guru/staf | Surat keterangan | Kepala Sekolah |
 | Siswa | Izin tidak masuk | Orang tua/wali |
 | Siswa (1–3 siswa/surat) | Dispensasi kegiatan | Kepala Sekolah |
+| Umum | Surat pengantar, permohonan penceramah, undangan | Kepala Sekolah |
+| Guru/staf | Surat pengantar cuti | Kepala Sekolah |
+| Siswa | Surat keterangan kehilangan, rekomendasi | Kepala Sekolah |
 
 Delapan belas DOCX di `templates_surat/legacy/` belum aktif dan tidak boleh
 dianggap siap generate. Ringkasan layar juga bukan pratinjau visual dokumen;
@@ -35,13 +38,15 @@ hasil Word atau PDF tetap wajib diperiksa sebelum diterbitkan.
 
 Kontrol yang tersedia pada kandidat ini:
 
-- role `user` tanpa login untuk membuat surat dan akun privat role `admin` untuk
-  riwayat, pembatalan, nomor manual, serta pengelolaan template;
+- login staf wajib secara default ketika akun dikonfigurasi; role `operator`
+  untuk pembuatan surat, data master, riwayat, dan ekspor; role `admin` juga
+  menangani pembatalan, nomor manual, serta pengelolaan template;
 - session admin 8 jam, login throttling, CSRF, cookie aman, dan retry token CSRF
   satu kali di browser;
 - nomor otomatis unik/idempoten pada satu instance SQLite atau PostgreSQL;
 - nomor manual hanya untuk admin;
-- audit aktor, pencarian/filter/pagination riwayat admin, pembatalan bernomor,
+- audit aktor bernama, filter tanggal WIB/operator dan detail riwayat,
+  pencarian/pagination data master, panduan TU dalam aplikasi, pembatalan bernomor,
   ekspor CSV, dan template tambahan persisten di database privat;
 - fail-fast bila data/template/database persisten tidak tersedia;
 - unduhan Word dan PDF memakai template, nomor surat, serta entri riwayat yang sama;
@@ -59,7 +64,7 @@ Cloud: browser --> HTTPS Vercel --> Flask Function --> Supabase PostgreSQL
 
 SQLite tetap ditujukan untuk satu proses dan tidak boleh ditempatkan pada network
 share. Vercel hanya didukung bila `DATABASE_URL` menunjuk PostgreSQL persisten dan
-akun admin serta secret stabil aktif. Pengguna umum tetap tidak perlu login.
+akun staf serta secret stabil aktif. Pengguna wajib login secara default.
 Tanpa PostgreSQL aplikasi menolak startup;
 fallback database demo/sementara sudah dihapus.
 
@@ -145,8 +150,10 @@ ESURAT_NUMBER_SUFFIX=SMADA
 ESURAT_AUTO_MIGRATE_DATABASE=0
 ```
 
-Kredensial bootstrap tunggal dapat dipakai sebagai akun admin. Tidak ada akun
-untuk pengguna umum karena role `user` diberikan otomatis tanpa login.
+Kredensial bootstrap tunggal dapat dipakai sebagai akun admin. Untuk beberapa
+staf, gunakan akun individual dengan role `operator` atau `admin` dalam file akun
+privat. `ESURAT_REQUIRE_LOGIN=1` melindungi direktori dan pembuatan surat pada
+internet maupun LAN; mode `0` hanya untuk demo sintetis atau identity proxy sekolah.
 
 Untuk provisioning awal tanpa menyalin secret ke chat atau command history,
 hubungkan folder ke project Vercel lalu jalankan prompt lokal berikut. Script
@@ -181,6 +188,12 @@ Simpan akun di `D:\E-Surat-Private\config\users.json`, bukan di Git:
     "password_hash": "<hash-yang-dihasilkan>",
     "role": "admin",
     "active": true
+  },
+  {
+    "username": "operator-tu",
+    "password_hash": "<hash-unik-untuk-operator>",
+    "role": "operator",
+    "active": true
   }
 ]
 ```
@@ -200,8 +213,9 @@ python app.py
 Jangan mengubah `ESURAT_SECRET_KEY` pada restart biasa. Perubahan secret memang
 mengakhiri semua session/token CSRF. Browser menangani token CSRF kedaluwarsa
 dengan meminta token baru dan mengulangi satu request; jika session login sudah
-berakhir, administrator harus login ulang. Pengguna umum tetap dapat memakai
-fitur pembuatan surat. Lihat seluruh variabel di
+berakhir, staf harus login ulang. Sesi berakhir paling lambat sesuai batas jam
+sejak login, termasuk jika terus digunakan. Saat sesi berakhir pada formulir surat,
+login kembali di tab baru agar formulir tetap terbuka. Lihat seluruh variabel di
 [.env.example](.env.example).
 
 ## Menjalankan dan memeriksa
@@ -216,10 +230,10 @@ python app.py
 
 Buka `http://127.0.0.1:5000` dan cek health lokal di `/healthz`. Endpoint health
 tidak menampilkan jumlah guru/siswa dan tetap harus dibatasi pada reverse proxy.
-Pengguna membuat surat langsung dari `/`; administrator memilih **Login Admin**
-untuk membuka dashboard `/admin`. Dashboard menampilkan metrik dan aktivitas
+Staf login untuk membuka dashboard `/admin` dan membuat surat dari `/`.
+Dashboard menampilkan metrik dan aktivitas
 surat, status sistem, ringkasan data master, halaman riwayat terfilter di
-`/admin/history`, serta halaman khusus pengelolaan template di
+`/admin/history`, panduan TU di `/admin/guide`, serta halaman admin untuk template di
 `/admin/templates`. Keluar dari panel admin mengakhiri sesi dan mengembalikan
 pengguna ke layar login.
 
@@ -269,6 +283,10 @@ Word, dan persetujuan dua orang.
 
 ## Dokumentasi
 
+- [Audit sistem 2 Oktober 2026](docs/AUDIT_SISTEM_2026-10-02.html) —
+  perbaikan bug, keputusan fitur, bukti pengujian, dan batas kesiapan terbaru.
+- [Upgrade ruang kerja TU 2 Oktober 2026](docs/UPGRADE_TU_2026-10-02.md) —
+  login staf, hak operator/admin, rekap periode, dan batas kesiapan terbaru.
 - [Panduan TU](docs/PANDUAN_TU.md) — operasi harian, role, pembatalan, backup,
   restore, dan troubleshooting.
 - [Audit Produksi](docs/AUDIT_PRODUKSI.md) — keputusan kesiapan, risiko tersisa,

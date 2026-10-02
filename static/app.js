@@ -74,7 +74,6 @@
     murid: byId('modalMurid'),
     templates: byId('modalTemplates'),
     arsip: byId('modalKodeArsip'),
-    riwayat: byId('modalRiwayat'),
     summary: byId('previewModal'),
     help: byId('modalHelp')
   };
@@ -240,6 +239,7 @@
       const type = response.headers.get('Content-Type') || '';
       if (type.includes('application/json')) {
         const payload = await response.json();
+        if (payload.code === 'auth_required') showLoginNotice();
         const error = new Error(payload.error || payload.message || fallback);
         error.status = response.status;
         error.fieldErrors = payload.field_errors || {};
@@ -255,6 +255,24 @@
       fallbackError.status = response.status;
       return fallbackError;
     }
+  }
+
+  function showLoginNotice() {
+    if (byId('tuSessionNotice')) return;
+    const notice = document.createElement('div');
+    notice.id = 'tuSessionNotice';
+    notice.className = 'admin-alert error tu-session-notice';
+    notice.setAttribute('role', 'alert');
+    const text = document.createElement('p');
+    text.textContent = 'Sesi Anda telah berakhir. Formulir tetap terbuka. Masuk kembali dengan akun yang sama, lalu ulangi tindakan.';
+    const link = document.createElement('a');
+    link.href = '/login?next=/';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.className = 'admin-btn admin-btn-secondary';
+    link.textContent = 'Login kembali di tab baru';
+    notice.append(text, link);
+    (document.querySelector('.app-main') || document.body).prepend(notice);
   }
 
   function applyCsrfToken(token) {
@@ -308,6 +326,12 @@
       throw new Error('Sesi tidak dapat diperbarui. Muat ulang halaman atau login kembali.');
     }
     applyCsrfToken(payload.csrf_token);
+    if (payload.login_required && !payload.authenticated) {
+      showLoginNotice();
+      throw new Error('Sesi berakhir. Login kembali dengan akun yang sama, lalu ulangi tindakan.');
+    }
+    const notice = byId('tuSessionNotice');
+    if (notice) notice.remove();
   }
 
   async function fetchWithCsrfRetry(url, options) {
@@ -1571,158 +1595,6 @@
     void loadKodeArsip('');
   }
 
-  function historyCard(record) {
-    const card = createElement('article', 'history-card');
-    const main = createElement('div', 'history-main');
-    const heading = createElement('div', 'history-heading');
-    heading.append(
-      createElement('strong', '', record.jenis_surat || '-'),
-      createElement(
-        'span',
-        record.kategori === 'murid' ? 'header-pill-badge purple' : 'header-pill-badge',
-        record.kategori === 'murid' ? 'SISWA' : 'GURU/STAFF'
-      )
-    );
-    main.append(
-      heading,
-      createElement('div', 'history-number', 'Nomor: ' + (record.nomor_surat || '-')),
-      createElement(
-        'div',
-        'history-person',
-        'Pemohon: ' + (record.nama_pemohon || '-') + ' (' + (record.id_pemohon || '-') + ')'
-      ),
-      createElement('div', 'history-purpose', 'Keperluan: ' + (record.keperluan || '-')),
-      createElement('div', 'history-actor', 'Operator: ' + (record.created_by || 'data lama'))
-    );
-    const side = createElement('div', 'history-side');
-    const status = String(record.status || 'generated').toLowerCase();
-    const statusMeta = status === 'cancelled'
-      ? { label: 'Dibatalkan', className: 'header-pill-badge error-badge' }
-      : status === 'failed'
-        ? { label: 'Gagal', className: 'header-pill-badge error-badge' }
-        : status === 'rendering'
-          ? { label: 'Diproses', className: 'header-pill-badge pending-badge' }
-          : { label: 'Terbuat', className: 'header-pill-badge success-badge' };
-    side.append(
-      createElement('span', 'history-date', record.created_at || '-'),
-      createElement('span', statusMeta.className, statusMeta.label)
-    );
-    if (record.cancel_reason) {
-      side.append(createElement('small', 'history-cancel-reason', record.cancel_reason));
-    }
-    if (['admin', 'reviewer'].includes(currentRole) && ['generated', 'failed'].includes(status)) {
-      const cancelButton = createElement('button', 'reset-link-btn history-cancel-btn', 'Batalkan');
-      cancelButton.type = 'button';
-      cancelButton.addEventListener('click', () => void cancelHistoryRecord(record));
-      side.append(cancelButton);
-    }
-    card.append(main, side);
-    return card;
-  }
-
-  async function cancelHistoryRecord(record) {
-    const reason = window.prompt(
-      'Masukkan alasan pembatalan nomor ' + (record.nomor_surat || '-') + ' (minimal 5 karakter):'
-    );
-    if (reason === null) return;
-    if (reason.trim().length < 5) {
-      setStatus(byId('riwayatModalStatus'), 'Alasan pembatalan minimal 5 karakter.', 'error');
-      return;
-    }
-    if (!window.confirm('Nomor akan dipertahankan dan ditandai dibatalkan. Lanjutkan?')) return;
-
-    const body = new FormData();
-    body.set('reason', reason.trim());
-    try {
-      await fetchJson('/api/history/' + encodeURIComponent(record.id) + '/cancel', {
-        method: 'POST',
-        body,
-        headers: csrfHeaders()
-      });
-      await openRiwayatDirectory(1, { open: false });
-    } catch (error) {
-      setStatus(
-        byId('riwayatModalStatus'),
-        error.message || 'Riwayat gagal dibatalkan.',
-        'error'
-      );
-    }
-  }
-
-  function renderHistoryPagination(payload) {
-    const container = byId('riwayatPagination');
-    container.replaceChildren();
-    const page = Number(payload.page || 1);
-    const pages = Number(payload.pages || 0);
-    if (pages <= 1) return;
-    const previous = createElement('button', 'btn-bottom-cancel', 'Sebelumnya');
-    previous.type = 'button';
-    previous.disabled = page <= 1;
-    previous.addEventListener('click', () => void openRiwayatDirectory(page - 1, { open: false }));
-    const label = createElement('span', 'history-page-label', 'Halaman ' + page + ' dari ' + pages);
-    const next = createElement('button', 'btn-bottom-cancel', 'Berikutnya');
-    next.type = 'button';
-    next.disabled = page >= pages;
-    next.addEventListener('click', () => void openRiwayatDirectory(page + 1, { open: false }));
-    container.append(previous, label, next);
-  }
-
-  async function openRiwayatDirectory(page, options) {
-    const settings = Object.assign({ open: true }, options || {});
-    if (settings.open) openModal(modals.riwayat, byId('closeRiwayatModalBtn'));
-    const status = byId('riwayatModalStatus');
-    const list = byId('riwayatModalList');
-    const controller = requestController('history');
-    setStatus(status, 'Memuat riwayat surat…', 'loading');
-    try {
-      const params = new URLSearchParams({
-        page: String(page || 1),
-        per_page: '25'
-      });
-      const search = byId('historySearchInput').value.trim();
-      const statusFilter = byId('historyStatusFilter').value;
-      const typeFilter = byId('historyTypeFilter').value;
-      if (search) params.set('q', search);
-      if (statusFilter) params.set('status', statusFilter);
-      if (typeFilter) params.set('jenis', typeFilter);
-      const payload = await fetchJson('/api/list/riwayat?' + params.toString(), {
-        signal: controller.signal
-      });
-      const records = normaliseList(payload);
-      list.replaceChildren();
-      if (!records.length) list.append(createElement('p', 'empty-state', 'Belum ada riwayat surat.'));
-      else {
-        const fragment = document.createDocumentFragment();
-        records.forEach((record) => fragment.append(historyCard(record)));
-        list.append(fragment);
-      }
-      renderHistoryPagination(payload);
-      setStatus(
-        status,
-        records.length + ' dari ' + Number(payload.total || records.length) + ' riwayat ditampilkan.',
-        records.length ? 'success' : 'info'
-      );
-    } catch (error) {
-      if (error.name !== 'AbortError') {
-        list.replaceChildren();
-        setStatus(status, error.message || 'Riwayat gagal dimuat.', 'error');
-      }
-    } finally {
-      releaseController('history', controller);
-    }
-  }
-
-  function exportHistoryCsv() {
-    const params = new URLSearchParams();
-    const search = byId('historySearchInput').value.trim();
-    const statusFilter = byId('historyStatusFilter').value;
-    const typeFilter = byId('historyTypeFilter').value;
-    if (search) params.set('q', search);
-    if (statusFilter) params.set('status', statusFilter);
-    if (typeFilter) params.set('jenis', typeFilter);
-    const suffix = params.toString() ? '?' + params.toString() : '';
-    window.location.assign('/api/history/export.csv' + suffix);
-  }
 
   function debounceDirectory(input, key, callback) {
     input.addEventListener('input', () => {
@@ -1908,7 +1780,6 @@
         else if (action === 'guru') openGuruDirectory();
         else if (action === 'murid') openMuridDirectory();
         else if (action === 'templates') openModal(modals.templates, byId('closeTemplatesModalBtn'));
-        else if (action === 'riwayat') void openRiwayatDirectory();
         else if (action === 'arsip') openKodeArsipDirectory(null);
       });
     });
@@ -1928,20 +1799,11 @@
       mobileTemplate.addEventListener('click', () => openModal(modals.templates, byId('closeTemplatesModalBtn')));
     }
     byId('helpBtn').addEventListener('click', () => openModal(modals.help, byId('closeHelpModalBtn')));
-    byId('historyRefreshBtn').addEventListener('click', () => void openRiwayatDirectory(1, { open: false }));
-    byId('historyExportBtn').addEventListener('click', exportHistoryCsv);
-    byId('historySearchInput').addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        void openRiwayatDirectory(1, { open: false });
-      }
-    });
 
     bindModalClose('closeGuruModalBtn', modals.guru);
     bindModalClose('closeMuridModalBtn', modals.murid);
     bindModalClose('closeTemplatesModalBtn', modals.templates);
     bindModalClose('closeKodeArsipModalBtn', modals.arsip);
-    bindModalClose('closeRiwayatModalBtn', modals.riwayat);
     bindModalClose('closeHelpModalBtn', modals.help);
     bindModalClose('modalCloseBtn', modals.summary);
 
@@ -1990,8 +1852,8 @@
       else if (requestedPanel === 'murid') openMuridDirectory();
       else if (requestedPanel === 'templates') {
         openModal(modals.templates, byId('closeTemplatesModalBtn'));
-      } else if (requestedPanel === 'riwayat' && currentRole === 'admin') {
-        void openRiwayatDirectory();
+      } else if (requestedPanel === 'riwayat' && ['admin', 'operator'].includes(currentRole)) {
+        window.location.assign('/admin/history');
       } else if (requestedPanel === 'kode') openKodeArsipDirectory(null);
     }
   }

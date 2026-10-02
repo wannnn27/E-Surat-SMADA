@@ -33,6 +33,10 @@
       })
       .then((payload) => {
         if (!payload || !payload.csrf_token) throw new Error('Token sesi tidak tersedia');
+        if (document.body.classList.contains('admin-page') && !payload.authenticated) {
+          window.location.assign('/login?notice=session_expired&next=' + encodeURIComponent(window.location.pathname + window.location.search));
+          throw new Error('Sesi telah berakhir');
+        }
         applyToken(payload.csrf_token);
         return payload.csrf_token;
       })
