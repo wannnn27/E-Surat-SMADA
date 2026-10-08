@@ -767,7 +767,7 @@ class AuthenticationTests(unittest.TestCase):
         self.assertEqual(browser.status_code, 200)
         browser_html = browser.get_data(as_text=True)
         self.assertIn('class="workspace-topbar"', browser_html)
-        self.assertIn("Login Staf TU", browser_html)
+        self.assertIn("Login Admin", browser_html)
         self.assertIn("static/session.js", browser_html)
 
         api = self.client.get("/api/list/guru")

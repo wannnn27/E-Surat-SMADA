@@ -152,8 +152,11 @@ ESURAT_AUTO_MIGRATE_DATABASE=0
 
 Kredensial bootstrap tunggal dapat dipakai sebagai akun admin. Untuk beberapa
 staf, gunakan akun individual dengan role `operator` atau `admin` dalam file akun
-privat. `ESURAT_REQUIRE_LOGIN=1` melindungi direktori dan pembuatan surat pada
-internet maupun LAN; mode `0` hanya untuk demo sintetis atau identity proxy sekolah.
+privat. Secara default `ESURAT_REQUIRE_LOGIN=0`: pengguna membuka web, memilih
+jenis surat, mencari NIP/NIS, dan membuat surat tanpa login. Panel admin,
+riwayat, ekspor, pengelolaan template, nomor manual, dan pembatalan tetap
+memerlukan otorisasi. Mode `1` tersedia jika seluruh aplikasi ingin dibatasi
+dengan login, tetapi bukan alur pengguna default.
 
 Untuk provisioning awal tanpa menyalin secret ke chat atau command history,
 hubungkan folder ke project Vercel lalu jalankan prompt lokal berikut. Script
@@ -283,6 +286,8 @@ Word, dan persetujuan dua orang.
 
 ## Dokumentasi
 
+- [Alur pengguna dan admin 8 Oktober 2026](docs/AKSES_PENGGUNA_2026-10-08.md) —
+  pengguna tanpa login, akses admin, dan konfigurasi server yang sudah terpasang.
 - [Audit sistem 2 Oktober 2026](docs/AUDIT_SISTEM_2026-10-02.html) —
   perbaikan bug, keputusan fitur, bukti pengujian, dan batas kesiapan terbaru.
 - [Upgrade ruang kerja TU 2 Oktober 2026](docs/UPGRADE_TU_2026-10-02.md) —

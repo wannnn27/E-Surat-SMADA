@@ -1,6 +1,6 @@
 # Panduan Operasional E-Surat SMADA
 
-Panduan ini ditujukan kepada pengguna Tata Usaha dan administrator teknis SMAN 2 Wonosari. Versi kandidat: 2 Oktober 2026.
+Panduan ini ditujukan kepada pengguna Tata Usaha dan administrator teknis SMAN 2 Wonosari. Pembaruan alur akses: 8 Oktober 2026.
 
 ## Batas penggunaan
 
@@ -31,11 +31,12 @@ Ringkasan di layar adalah ringkasan data tervalidasi, bukan tampilan halaman Wor
 
 | Peran | Tanggung jawab minimum |
 | --- | --- |
+| Pengguna (`user`, tanpa login) | Membuka web, memilih jenis surat, mencari NIP/NIS, mengisi detail, dan mengunduh Word/PDF; tidak dapat mengakses panel atau tindakan administrasi |
 | Operator TU (`operator`, dengan login) | Membuat dan memeriksa surat, mencari data master, melihat detail riwayat, dan mengekspor rekap; tidak dapat memakai nomor manual, membatalkan, atau mengelola template |
 | Administrator (`admin`, dengan login) | Menjaga service, akun, TLS, data master, template, backup/restore; dapat melihat riwayat, mengekspor, memakai nomor manual, membatalkan, dan menambah template |
 | Pemilik data/pimpinan | Menetapkan hak akses, retensi, kebijakan nomor surat, penerimaan pilot, dan respons insiden data pribadi |
 
-Gunakan akun individual agar pembuat surat dan tindakan pengelolaan dapat ditelusuri. Jangan berbagi akun atau meninggalkan sesi terbuka ketika meja ditinggalkan. Login diwajibkan secara default bila akun dikonfigurasi, untuk internet maupun LAN. Akses tanpa login (`ESURAT_REQUIRE_LOGIN=0`) hanya untuk demo sintetis atau lingkungan yang telah dilindungi identity proxy sekolah. Mode tanpa akun tetap dibatasi pada komputer lokal.
+Pengguna tidak perlu login untuk membuat surat. Default `ESURAT_REQUIRE_LOGIN=0` berlaku untuk internet maupun LAN dengan akun admin yang dikonfigurasi. Login admin diperlukan untuk panel, riwayat, ekspor, pengelolaan template, nomor manual, dan pembatalan. Akun operator yang sudah ada tetap kompatibel untuk staf internal. Gunakan akun individual untuk tindakan administrasi; jangan berbagi akun atau meninggalkan sesi terbuka. Mode tanpa konfigurasi akun tetap dibatasi pada komputer lokal.
 
 ## Aturan keamanan data
 

@@ -56,7 +56,7 @@
 
       <div class="login-showcase-footer">
         <span class="login-status-dot" aria-hidden="true"></span>
-        Akses staf Tata Usaha
+        Akses administrator
       </div>
     </section>
 
@@ -78,7 +78,7 @@
           </span>
           <p class="login-eyebrow">RUANG KERJA TATA USAHA</p>
           <h2 id="login-title">Selamat datang kembali</h2>
-          <p>Masukkan akun staf TU untuk membuat surat dan memeriksa riwayat pekerjaan.</p>
+          <p>Masukkan akun admin untuk mengelola template, data, dan riwayat surat.{% if not login_required %} Pengguna dapat membuat surat tanpa login.{% endif %}</p>
         </div>
 
         {% if error %}

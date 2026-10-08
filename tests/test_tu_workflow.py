@@ -34,7 +34,7 @@ class TUWorkflowTests(unittest.TestCase):
             "TESTING": True, "DATA_DIR": fixtures.FIXTURE_DATA_DIR, "DATABASE": self.database,
             "SECRET_KEY": "tu-test-secret", "AUTH_USERS_FILE": str(users),
             "AUTH_USERNAME": "", "AUTH_PASSWORD": "", "AUTH_PASSWORD_HASH": "",
-            "AUTH_ENABLED": True, "BIND_HOST": "127.0.0.1", "INIT_DB_ON_CREATE": True,
+            "AUTH_ENABLED": True, "REQUIRE_LOGIN": True, "BIND_HOST": "127.0.0.1", "INIT_DB_ON_CREATE": True,
             "KEPSEK_NIP": fixtures.TEST_KEPSEK_NIP, "NOW_FUNC": lambda: fixtures.FIXED_NOW,
         })
         self.client = self.app.test_client()
